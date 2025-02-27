@@ -3,7 +3,7 @@ Official repository for *Federated Medical and Surgical Object Detection on the 
 
 UltraFlwr provides random and equally sized YOLO compatible data partitioning, federated training, and flexible testing capabilities. It integrates [Ultralytics](https://github.com/Ultralytics/Ultralytics) YOLO off-the-shelf within the [Flower](https://github.com/adap/flower) framework.
 
-Developed by anonymized authors.
+Developed by anonymized authors. (In review @ MICCAI)
 
 --------
 
