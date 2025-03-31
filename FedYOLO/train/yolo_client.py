@@ -5,13 +5,15 @@ import torch
 import flwr as fl
 from ultralytics import YOLO
 from FedYOLO.config import SERVER_CONFIG, YOLO_CONFIG, SPLITS_CONFIG, HOME
+from flwr.common import Context
+from flwr.client import ClientApp
 from FedYOLO.test.extract_final_save_from_client import extract_results_path
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--cid", type=int, required=True)
-parser.add_argument("--data_path", type=str, default="./client_0_assets/dummy_data_0/data.yaml")
+# parser = argparse.ArgumentParser()
+# parser.add_argument("--cid", type=int, required=True)
+# parser.add_argument("--data_path", type=str, default="./client_0_assets/dummy_data_0/data.yaml")
 
 NUM_CLIENTS = SERVER_CONFIG['max_num_clients']
 
@@ -107,15 +109,28 @@ class FlowerClient(fl.client.NumPyClient):
         self.set_parameters(parameters) # this needs to be modified so we only asign parts of the weights
         train(self.net, self.data_path, self.cid, f"{self.strategy_name}_{self.dataset_name}_{self.cid}")
         return self.get_parameters(), 10, {}
+    
+def client_fn(context: Context):
+    # args = parser.parse_args()
+    # assert args.cid < NUM_CLIENTS
+    cid = context.node_config["cid"]
+    data_path = context.node_config["data_path"]
+    assert cid < NUM_CLIENTS
+
+    return FlowerClient(cid, data_path, SPLITS_CONFIG['dataset_name'], SERVER_CONFIG['strategy']).to_client()
+
+app = ClientApp(
+    client_fn,
+)
 
 
-def main():
+# def main():
 
-    args = parser.parse_args()
-    assert args.cid < NUM_CLIENTS
-    fl.client.start_client(server_address=SERVER_CONFIG['server_address'], 
-                           client=FlowerClient(args.cid, args.data_path, SPLITS_CONFIG['dataset_name'], SERVER_CONFIG['strategy']))
+#     args = parser.parse_args()
+#     assert args.cid < NUM_CLIENTS
+#     fl.client.start_client(server_address=SERVER_CONFIG['server_address'], 
+#                            client=FlowerClient(args.cid, args.data_path, SPLITS_CONFIG['dataset_name'], SERVER_CONFIG['strategy']))
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
     

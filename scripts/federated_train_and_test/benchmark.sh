@@ -40,7 +40,7 @@ DATASET_NAME_LIST=("baseline")
 #     "FedBackboneHeadMedian"
 #     "FedBackboneNeckMedian"
 # )
-STRATEGY_LIST=("FedAvg")
+STRATEGY_LIST=("FedBackboneAvg" "FedNeckMedian")
 
 # Partition the data, comment out if already partitioned
 # python3 FedYOLO/data_partitioner/fed_split.py >> logs/data_partition_log.txt 2>&1
