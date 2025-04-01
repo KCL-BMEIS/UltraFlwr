@@ -107,7 +107,7 @@ class FlowerClient(fl.client.NumPyClient):
             self.net = YOLO(weights)
 
         self.set_parameters(parameters) # this needs to be modified so we only asign parts of the weights
-        train(self.net, self.data_path, self.cid, f"{self.strategy_name}_{self.dataset_name}_{self.cid}")
+        train(self.net, self.data_path, self.cid, f"logs/Ultralytics_logs/{self.strategy_name}_{self.dataset_name}_{self.cid}")
         return self.get_parameters(), 10, {}
     
 def client_fn(context: Context):
