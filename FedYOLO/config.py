@@ -18,7 +18,7 @@ def generate_client_config(num_clients, dataset_path):
     }
 
 # Base Configuration
-BASE = "/home/yang/Downloads/upgrade_flower"  # YOUR PATH CONTAINING UltraFlwr
+BASE = ""  # YOUR PATH CONTAINING UltraFlwr
 HOME = f"{BASE}/UltraFlwr"
 DATASET_NAME = 'baseline'
 DATASET_PATH = f'{HOME}/datasets/{DATASET_NAME}'
