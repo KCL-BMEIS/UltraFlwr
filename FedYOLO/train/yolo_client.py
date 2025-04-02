@@ -122,15 +122,3 @@ def client_fn(context: Context):
 app = ClientApp(
     client_fn,
 )
-
-
-# def main():
-
-#     args = parser.parse_args()
-#     assert args.cid < NUM_CLIENTS
-#     fl.client.start_client(server_address=SERVER_CONFIG['server_address'], 
-#                            client=FlowerClient(args.cid, args.data_path, SPLITS_CONFIG['dataset_name'], SERVER_CONFIG['strategy']))
-
-# if __name__ == "__main__":
-#     main()
-    
