@@ -79,32 +79,6 @@ start_supernode() {
     echo "Client $CLIENT_CID started with PID: $CLIENT_PID. Logs: $CLIENT_LOG"
 }
 
-
-# # Function to start the server
-# start_server() {
-#     # Free port 8080 before starting the server
-#     echo "Freeing port 8080..."
-#     lsof -t -i:8080 | xargs kill -9 2>/dev/null
-#     echo "Starting server..."
-#     SERVER_LOG="logs/server_log_${DATASET_NAME}_${STRATEGY_NAME}.txt"
-#     python3 "$SERVER_SCRIPT" > "$SERVER_LOG" 2>&1 &
-#     SERVER_PID=$!
-#     PIDS+=($SERVER_PID)
-#     echo "Server started with PID: $SERVER_PID. Logs: $SERVER_LOG"
-# }
-
-# Function to start a client with its own config
-# start_client() {
-#     CLIENT_CID=$1
-#     CLIENT_DATA_PATH=$(python3 -c "from FedYOLO.config import CLIENT_CONFIG; print(CLIENT_CONFIG[$CLIENT_CID]['data_path'])")
-#     CLIENT_LOG="logs/client_${CLIENT_CID}_log_${DATASET_NAME}_${STRATEGY_NAME}.txt"
-#     echo "Starting client $CLIENT_CID with data path: $CLIENT_DATA_PATH..."
-#     python3 "$CLIENT_SCRIPT" --cid="$CLIENT_CID" --data_path="$CLIENT_DATA_PATH" > "$CLIENT_LOG" 2>&1 &
-#     CLIENT_PID=$!
-#     PIDS+=($CLIENT_PID)
-#     echo "Client $CLIENT_CID started with PID: $CLIENT_PID. Logs: $CLIENT_LOG"
-# }
-
 # Start the server
 start_superlink
 
