@@ -7,6 +7,11 @@ name = "FedYOLO"
 version = "1.0.0"
 description = ""
 license = "AGPL-3.0"
+dependencies = [
+    "flwr==1.17.0",
+    "ultralytics==8.3.100",
+    "prettytable==3.16.0"
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["."]

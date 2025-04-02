@@ -31,6 +31,6 @@ Follow the style of roboflow downloads as mentioned in above steps.
 
 ### Training
 
-12. For one-off: `./scripts/run.sh`
+12. For one-off: `./scripts/federated_train_and_test/run.sh`
     - For multiple Runs, reference: `bash scripts/federated_train_and_test/benchmark.sh`
     - For normal YOLO training on entire server dataset and client data partitions: `bash scripts/central_train_and_test/run_local_train_and_test.sh`
