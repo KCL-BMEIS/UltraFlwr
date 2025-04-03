@@ -4,6 +4,23 @@
 First, clone the repo to local machine. Navigate to the root of the repo.
 
 ## Running Docker
+### With Dockerfile and dockerhub
+
+Build custom docker image using
+
+```bash
+./scripts/docker/create_docker_image.sh
+```
+The script would prompt for a `<DOCKER_TAG>`.
+
+Then, pull the image and run docker container with all dependencies pre-built into the container:
+
+```bash
+sudo docker run --gpus all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864 -it --rm --net=host --runtime nvidia -e DISPLAY=$DISPLAY -v /tmp/.X11-unix/:/tmp/.X11-unix -v <PATH_CONTAINING_ULTRAFLWR>/UltraFlwr:/UltraFlwr <DOCKER_TAG>
+```
+
+
+### Without using Dockerfile
 
 Assuming the machine has a Nvidia GPU, first, [Nvidia Container Runtime](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) is needed.
 
