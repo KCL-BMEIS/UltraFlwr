@@ -1,5 +1,5 @@
-# need cuda 12.4 and python 3.10
-FROM nvcr.io/nvidia/pytorch:24.05-py3
+# need Ulrtalytics 8.3.101 for YOLOv11
+FROM ultralytics/ultralytics:8.3.101
 
 ARG USER_ID
 ARG GROUP_ID
@@ -19,4 +19,4 @@ RUN apt update && \
     apt clean && rm -rf /var/lib/apt/lists/*
 
 # Install Python packages
-RUN pip install prettytable==3.12.0 flwr==1.14.0 ultralytics==8.3.53 opencv-python==4.8.0.74
+RUN pip install prettytable==3.16.0 flwr==1.17.0
