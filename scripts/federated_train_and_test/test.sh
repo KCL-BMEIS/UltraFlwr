@@ -8,19 +8,19 @@ cd ../../
 PYTHON_SCRIPT="FedYOLO/test/test.py"
 CONFIG_FILE="FedYOLO/train/yolo_client.py"
 
-# Install FedYOLO from setup.py
-if [[ -f "setup.py" ]]; then
+# Install FedYOLO from pyproject.toml, uncomment if already installed
+if [[ -f "pyproject.toml" ]]; then
     echo "Installing FedYOLO package..."
     pip install --no-cache-dir -e .
 else
-    echo "Error: setup.py not found. Cannot install FedYOLO."
+    echo "Error: pyproject.toml not found. Cannot install FedYOLO."
     exit 1
 fi
 
 # List of datasets and strategies (similar to benchmark.sh)
 DATASET_NAME_LIST=("baseline")
 # STRATEGY_LIST=("FedAvg" "FedHeadAvg" "FedHeadMedian" "FedNeckAvg" "FedNeckMedian" "FedBackboneAvg" "FedBackboneMedian" "FedNeckHeadAvg" "FedNeckHeadMedian")
-STRATEGY_LIST=("FedMedian")
+STRATEGY_LIST=("FedNeckMedian" "FedBackboneAvg")
 
 # Number of clients for client-dependent tests
 NUM_CLIENTS=$(python3 -c "from FedYOLO.config import NUM_CLIENTS; print(NUM_CLIENTS)")

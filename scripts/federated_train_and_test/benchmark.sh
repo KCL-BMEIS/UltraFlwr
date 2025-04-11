@@ -13,12 +13,12 @@ if [[ ! -f "$CLIENT_CONFIG_FILE" ]]; then
     exit 1
 fi
 
-# Install FedYOLO from setup.py, uncomment if already installed
-if [[ -f "setup.py" ]]; then
+# Install FedYOLO from pyproject.toml, uncomment if already installed
+if [[ -f "pyproject.toml" ]]; then
     echo "Installing FedYOLO package..."
     pip install --no-cache-dir -e .
 else
-    echo "Error: setup.py not found. Cannot install FedYOLO."
+    echo "Error: pyproject.toml not found. Cannot install FedYOLO."
     exit 1
 fi
 
