@@ -3,7 +3,8 @@ import os
 import numpy as np
 
 import flwr as fl
-from flwr.common import ndarrays_to_parameters
+from flwr.common import ndarrays_to_parameters, Context
+from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 
 from ultralytics import YOLO
 
@@ -37,8 +38,7 @@ def create_yolo_yaml(dataset_name: str, num_classes: int) -> YOLO:
     write_yolo_config(dataset_name, num_classes)
     return YOLO(f"{HOME}/FedYOLO/yolo_configs/yolo11n_{dataset_name}.yaml")
 
-
-def main() -> None:
+def server_fn(context: Context):
     """Start the FL server with custom strategy."""
     # Make the directory HOME/FedYOLO/yolo_configs if it does not exist
     os.makedirs(f"{HOME}/FedYOLO/yolo_configs", exist_ok=True)
@@ -86,15 +86,8 @@ def main() -> None:
         on_fit_config_fn=fit_config,
         initial_parameters=initial_parameters,
     )
+    config = ServerConfig(num_rounds=SERVER_CONFIG["rounds"])
 
-    # Start Flower server
-    fl.server.start_server(
-        server_address=SERVER_CONFIG["server_address"],
-        config=fl.server.ServerConfig(num_rounds=SERVER_CONFIG["rounds"]),
-        strategy=strategy,
-    )
+    return ServerAppComponents(strategy=strategy, config=config)
 
-
-if __name__ == "__main__":
-    main()
-    
+app = ServerApp(server_fn=server_fn)

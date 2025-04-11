@@ -13,12 +13,12 @@ if [[ ! -f "$CLIENT_CONFIG_FILE" ]]; then
     exit 1
 fi
 
-# Install FedYOLO from setup.py, uncomment if already installed
-if [[ -f "setup.py" ]]; then
+# Install FedYOLO from pyproject.toml, uncomment if already installed
+if [[ -f "pyproject.toml" ]]; then
     echo "Installing FedYOLO package..."
     pip install --no-cache-dir -e .
 else
-    echo "Error: setup.py not found. Cannot install FedYOLO."
+    echo "Error: pyproject.toml not found. Cannot install FedYOLO."
     exit 1
 fi
 
@@ -40,7 +40,7 @@ DATASET_NAME_LIST=("baseline")
 #     "FedBackboneHeadMedian"
 #     "FedBackboneNeckMedian"
 # )
-STRATEGY_LIST=("FedAvg")
+STRATEGY_LIST=("FedBackboneAvg" "FedNeckMedian")
 
 # Partition the data, comment out if already partitioned
 # python3 FedYOLO/data_partitioner/fed_split.py >> logs/data_partition_log.txt 2>&1
