@@ -11,13 +11,13 @@ cd $SCRIPTPATH
 cd ../../
 
 # Install FedYOLO from setup.py, uncomment if already installed
-if [[ -f "setup.py" ]]; then
-    echo "Installing FedYOLO package..."
-    pip install --no-cache-dir -e .
-else
-    echo "Error: setup.py not found. Cannot install FedYOLO."
-    exit 1
-fi
+# if [[ -f "setup.py" ]]; then
+#     echo "Installing FedYOLO package..."
+#     pip install --no-cache-dir -e .
+# else
+#     echo "Error: setup.py not found. Cannot install FedYOLO."
+#     exit 1
+# fi
 
 BASE_PATH="$(pwd)"
 

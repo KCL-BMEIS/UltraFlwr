@@ -33,21 +33,29 @@ def get_parameters(net: YOLO) -> list[np.ndarray]:
     return [val.cpu().numpy() for _, val in net.model.state_dict().items()]
 
 
-def create_yolo_yaml(dataset_name: str, num_classes: int) -> YOLO:
-    """Initialize YOLO model with the specified dataset and number of classes."""
+def create_yolo_yaml(dataset_name: str, num_classes: int, task: str) -> YOLO:
+    """Initialize YOLO model with the specified dataset, number of classes, and task."""
     write_yolo_config(dataset_name, num_classes)
-    return YOLO(f"{HOME}/FedYOLO/yolo_configs/yolo11n_{dataset_name}.yaml")
+    yaml_path = f"{HOME}/FedYOLO/yolo_configs/yolo11n_{dataset_name}.yaml"
+    if task == "segment":
+        return YOLO("yolo11n-seg.pt")
+    else:
+        return YOLO(yaml_path)
 
 def server_fn(context: Context):
     """Start the FL server with custom strategy."""
     # Make the directory HOME/FedYOLO/yolo_configs if it does not exist
     os.makedirs(f"{HOME}/FedYOLO/yolo_configs", exist_ok=True)
 
+    # Use the first client task as the default for server initialization
+    from FedYOLO.config import CLIENT_TASKS
+    server_task = CLIENT_TASKS[0] if hasattr(context, 'node_config') and 'task' in context.node_config else CLIENT_TASKS[0]
+
     # Create dataset specific YOLO yaml
-    create_yolo_yaml(SPLITS_CONFIG["dataset_name"], SPLITS_CONFIG["num_classes"])
+    model = create_yolo_yaml(SPLITS_CONFIG["dataset_name"], SPLITS_CONFIG["num_classes"], server_task)
 
     # Initialize server side parameters
-    initial_parameters = ndarrays_to_parameters(get_parameters(YOLO()))
+    initial_parameters = ndarrays_to_parameters(get_parameters(model))
 
     # Map of available strategies
     strategies = {

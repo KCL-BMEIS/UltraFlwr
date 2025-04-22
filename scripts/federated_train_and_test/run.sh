@@ -56,8 +56,12 @@ start_app () {
 # Function to start a supernode
 start_supernode() {
     CLIENT_CID=$1
+    # Fetch client-specific data path and dataset name from config.py
     CLIENT_DATA_PATH=$(python3 -c "from FedYOLO.config import CLIENT_CONFIG; print(CLIENT_CONFIG[$CLIENT_CID]['data_path'])")
-    CLIENT_LOG="logs/client_${CLIENT_CID}_log_${DATASET_NAME}_${STRATEGY_NAME}.txt"
+    CLIENT_DATASET_NAME=$(python3 -c "from FedYOLO.config import CLIENT_CONFIG; print(CLIENT_CONFIG[$CLIENT_CID]['dataset_name'])") # Fetch dataset_name
+
+    # Use client-specific dataset name for the log file
+    CLIENT_LOG="logs/client_${CLIENT_CID}_log_${CLIENT_DATASET_NAME}_${STRATEGY_NAME}.txt"
     
     # Dynamically compute port as 909(A + 4)
     PORT=$((9090 + CLIENT_CID + 4))

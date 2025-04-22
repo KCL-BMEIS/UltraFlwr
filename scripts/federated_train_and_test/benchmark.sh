@@ -13,14 +13,14 @@ if [[ ! -f "$CLIENT_CONFIG_FILE" ]]; then
     exit 1
 fi
 
-# Install FedYOLO from pyproject.toml, uncomment if already installed
-if [[ -f "pyproject.toml" ]]; then
-    echo "Installing FedYOLO package..."
-    pip install --no-cache-dir -e .
-else
-    echo "Error: pyproject.toml not found. Cannot install FedYOLO."
-    exit 1
-fi
+# Install FedYOLO from setup.py, uncomment if already installed
+# if [[ -f "setup.py" ]]; then
+#     echo "Installing FedYOLO package..."
+#     pip install --no-cache-dir -e .
+# else
+#     echo "Error: setup.py not found. Cannot install FedYOLO."
+#     exit 1
+# fi
 
 # List of datasets and strategies
 DATASET_NAME_LIST=("baseline")

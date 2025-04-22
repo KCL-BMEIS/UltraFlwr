@@ -8,15 +8,6 @@ cd ../../
 PYTHON_SCRIPT="FedYOLO/test/test.py"
 CONFIG_FILE="FedYOLO/train/yolo_client.py"
 
-# Install FedYOLO from setup.py
-if [[ -f "setup.py" ]]; then
-    echo "Installing FedYOLO package..."
-    pip install --no-cache-dir -e .
-else
-    echo "Error: setup.py not found. Cannot install FedYOLO."
-    exit 1
-fi
-
 DATASET_NAME_LIST=($(python3 -c "from FedYOLO.config import SPLITS_CONFIG; print(SPLITS_CONFIG['dataset_name'])"))
 STRATEGY_LIST=($(python3 -c "from FedYOLO.config import SERVER_CONFIG; print(SERVER_CONFIG['strategy'])"))
 

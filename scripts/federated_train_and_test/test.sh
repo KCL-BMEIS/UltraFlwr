@@ -9,13 +9,13 @@ PYTHON_SCRIPT="FedYOLO/test/test.py"
 CONFIG_FILE="FedYOLO/train/yolo_client.py"
 
 # Install FedYOLO from pyproject.toml, uncomment if already installed
-if [[ -f "pyproject.toml" ]]; then
-    echo "Installing FedYOLO package..."
-    pip install --no-cache-dir -e .
-else
-    echo "Error: pyproject.toml not found. Cannot install FedYOLO."
-    exit 1
-fi
+# if [[ -f "pyproject.toml" ]]; then
+#     echo "Installing FedYOLO package..."
+#     pip install --no-cache-dir -e .
+# else
+#     echo "Error: pyproject.toml not found. Cannot install FedYOLO."
+#     exit 1
+# fi
 
 # List of datasets and strategies (similar to benchmark.sh)
 DATASET_NAME_LIST=("baseline")
