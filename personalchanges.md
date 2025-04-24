@@ -6,3 +6,4 @@
 6. why are there two test.sh's ??
 7. Add the federated plotting code.
 8. why is there a src
+9. upgrade the requiremts file with tabulate

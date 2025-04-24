@@ -20,7 +20,7 @@ CONFIG_FILE="FedYOLO/train/yolo_client.py"
 # List of datasets and strategies (similar to benchmark.sh)
 DATASET_NAME_LIST=("baseline")
 # STRATEGY_LIST=("FedAvg" "FedHeadAvg" "FedHeadMedian" "FedNeckAvg" "FedNeckMedian" "FedBackboneAvg" "FedBackboneMedian" "FedNeckHeadAvg" "FedNeckHeadMedian")
-STRATEGY_LIST=("FedNeckMedian" "FedBackboneAvg")
+STRATEGY_LIST=("FedNeckMedian")
 
 # Number of clients for client-dependent tests
 NUM_CLIENTS=$(python3 -c "from FedYOLO.config import NUM_CLIENTS; print(NUM_CLIENTS)")

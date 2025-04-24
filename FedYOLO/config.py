@@ -66,9 +66,6 @@ SPLITS_CONFIG = {
     'ratio': CLIENT_RATIOS
 }
 
-# Remove dynamic override; use manual CLIENT_CONFIG
-# CLIENT_CONFIG = generate_client_config(NUM_CLIENTS, DATASET_PATH, CLIENT_TASKS)
-
 SERVER_CONFIG = {
     'server_address': "0.0.0.0:8080",
     'rounds': 2,
@@ -80,6 +77,5 @@ SERVER_CONFIG = {
 
 YOLO_CONFIG = {
     'batch_size': 8,
-    'epochs': 10,
-    # 'task': 'segment',  # Task is now defined per client in CLIENT_CONFIG
+    'epochs': 2,
 }
