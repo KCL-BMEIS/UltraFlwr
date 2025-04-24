@@ -2,7 +2,7 @@ import yaml
 import shutil
 from pathlib import Path
 from prettytable import PrettyTable
-from FedYOLO.config import SPLITS_CONFIG
+from FedYOLO.config import HOME, CLIENT_CONFIG, CLIENT_RATIOS, NUM_CLIENTS
 
 def count_classes(label_files):
     """Count occurrences of each class in the label files."""
@@ -43,10 +43,14 @@ def split_dataset(config):
             - ratio (list): List of ratios for each client
             - dataset (str): Path to dataset directory
             - num_clients (int): Number of clients
+            - dataset_name (str): Name of the dataset
     """
     ratios = config['ratio']
     data_path = Path(config['dataset'])
     num_clients = config['num_clients']
+    dataset_name = config['dataset_name']
+
+    print(f"\nProcessing dataset: {dataset_name}")
 
     # Validate inputs
     if not isinstance(ratios, list) or len(ratios) != num_clients:
@@ -69,8 +73,18 @@ def split_dataset(config):
 
     partition_path = data_path / 'partitions'
     
-    # Create client directories and yaml files
-    for client_id in range(num_clients):
+    # Find which clients use this dataset
+    clients_for_dataset = [cid for cid, client_data in CLIENT_CONFIG.items() 
+                           if client_data['dataset_name'] == dataset_name]
+    
+    if not clients_for_dataset:
+        print(f"No clients are using dataset {dataset_name}, skipping split creation")
+        return
+    
+    print(f"Creating splits for clients: {clients_for_dataset}")
+    
+    # Create client directories and yaml files for clients using this dataset
+    for client_id in clients_for_dataset:
         client_dir = partition_path / f'client_{client_id}'
         for split in ['train', 'valid', 'test']:
             (client_dir / split / 'images').mkdir(parents=True, exist_ok=True)
@@ -86,22 +100,30 @@ def split_dataset(config):
             yaml.dump(client_yaml, f)
 
     client_class_counts = {f'client_{i}': {'train': {}, 'valid': {}, 'test': {}} 
-                          for i in range(num_clients)}
+                          for i in clients_for_dataset}
 
     # Split and copy files
     for split in ['train', 'valid', 'test']:
         images = list((data_path / split / 'images').glob('*'))
         labels = list((data_path / split / 'labels').glob('*'))
         
+        if not images or not labels:
+            print(f"No {split} data found for {dataset_name}")
+            continue
+            
+        # Adjust ratios for the subset of clients using this dataset
+        num_dataset_clients = len(clients_for_dataset)
+        dataset_ratios = [1/num_dataset_clients] * num_dataset_clients
+        
         start_idx = 0
         remaining = len(images)
 
-        for client_id in range(num_clients):
+        for i, client_id in enumerate(clients_for_dataset):
             # For last client, use all remaining files
-            if client_id == num_clients - 1:
+            if i == num_dataset_clients - 1:
                 n_files = remaining
             else:
-                n_files = int(len(images) * ratios[client_id])
+                n_files = int(len(images) * dataset_ratios[i])
                 remaining -= n_files
             
             client_images = images[start_idx:start_idx + n_files]
@@ -121,8 +143,31 @@ def split_dataset(config):
 
         # Print the table for this split
         table = create_class_distribution_table(global_class_counts, client_class_counts, split)
-        print(f"\nClass distribution for {split} split:")
+        print(f"\nClass distribution for {dataset_name} {split} split:")
         print(table)
 
+def generate_splits_configs():
+    """Generate split configurations for each unique dataset in CLIENT_CONFIG."""
+    datasets = {}
+    
+    # Collect unique datasets
+    for client_data in CLIENT_CONFIG.values():
+        dataset_name = client_data['dataset_name']
+        if dataset_name not in datasets:
+            dataset_path = f'{HOME}/datasets/{dataset_name}'
+            datasets[dataset_name] = {
+                'dataset_name': dataset_name,
+                'dataset': dataset_path,
+                'num_clients': NUM_CLIENTS,
+                'ratio': CLIENT_RATIOS
+            }
+    
+    return datasets
+
 if __name__ == "__main__":
-    split_dataset(SPLITS_CONFIG)
+    # Generate split configs for each dataset
+    splits_configs = generate_splits_configs()
+    
+    # Process each dataset
+    for dataset_name, config in splits_configs.items():
+        split_dataset(config)

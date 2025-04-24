@@ -5,18 +5,22 @@ import torch
 import flwr as fl
 from ultralytics import YOLO
 from FedYOLO.config import SERVER_CONFIG, YOLO_CONFIG, SPLITS_CONFIG, HOME
+from flwr.common import Context
+from flwr.client import ClientApp
 from FedYOLO.test.extract_final_save_from_client import extract_results_path
+from FedYOLO.train.server_utils import write_yolo_config
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--cid", type=int, required=True)
-parser.add_argument("--data_path", type=str, default="./client_0_assets/dummy_data_0/data.yaml")
+# parser = argparse.ArgumentParser()
+# parser.add_argument("--cid", type=int, required=True)
+# parser.add_argument("--data_path", type=str, default="./client_0_assets/dummy_data_0/data.yaml")
 
 NUM_CLIENTS = SERVER_CONFIG['max_num_clients']
 
-def train(net, data_path, cid, strategy):
-    net.train(data=data_path, epochs=YOLO_CONFIG['epochs'], workers=0, seed=cid, batch=YOLO_CONFIG['batch_size'], project=strategy)
+def train(net, data_path, cid, strategy, task):
+    net.train(data=data_path, epochs=YOLO_CONFIG['epochs'], workers=0, seed=cid, 
+              batch=YOLO_CONFIG['batch_size'], project=strategy, task=task)
 
 def get_section_parameters(state_dict: OrderedDict) -> tuple[dict, dict, dict]:
     """Get parameters for each section of the model."""
@@ -41,13 +45,21 @@ def get_section_parameters(state_dict: OrderedDict) -> tuple[dict, dict, dict]:
     return backbone_weights, neck_weights, head_weights
 
 class FlowerClient(fl.client.NumPyClient):
-    def __init__(self, cid, data_path, dataset_name, strategy_name):
+    def __init__(self, cid, data_path, dataset_name, num_classes, strategy_name, task):
+        # Initialize model config for this client
+        write_yolo_config(dataset_name, num_classes)
+        yaml_path = f"{HOME}/FedYOLO/yolo_configs/yolo11n_{dataset_name}.yaml"
+        # Load segmentation weights or detection config
+        if task == "segment":
+            self.net = YOLO("yolo11n-seg.pt")
+        else:
+            self.net = YOLO(yaml_path)
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.net = YOLO()
         self.cid = cid
         self.data_path = data_path
-        self.dataset_name=dataset_name
-        self.strategy_name=strategy_name
+        self.dataset_name = dataset_name
+        self.strategy_name = strategy_name
+        self.task = task
 
     def get_parameters(self):
         return [val.cpu().numpy() for _, val in self.net.model.state_dict().items()]
@@ -105,17 +117,20 @@ class FlowerClient(fl.client.NumPyClient):
             self.net = YOLO(weights)
 
         self.set_parameters(parameters) # this needs to be modified so we only asign parts of the weights
-        train(self.net, self.data_path, self.cid, f"{self.strategy_name}_{self.dataset_name}_{self.cid}")
+        train(self.net, self.data_path, self.cid, f"logs/Ultralytics_logs/{self.strategy_name}_{self.dataset_name}_{self.cid}", self.task)
         return self.get_parameters(), 10, {}
-
-
-def main():
-
-    args = parser.parse_args()
-    assert args.cid < NUM_CLIENTS
-    fl.client.start_client(server_address=SERVER_CONFIG['server_address'], 
-                           client=FlowerClient(args.cid, args.data_path, SPLITS_CONFIG['dataset_name'], SERVER_CONFIG['strategy']))
-
-if __name__ == "__main__":
-    main()
     
+def client_fn(context: Context):
+    from FedYOLO.config import CLIENT_CONFIG
+    cid = context.node_config.get("cid", 0)
+    cfg = CLIENT_CONFIG[cid]
+    data_path = context.node_config.get("data_path", cfg["data_path"])
+    dataset_name = cfg["dataset_name"]
+    num_classes = cfg["num_classes"]
+    task = context.node_config.get("task", cfg["task"])
+    assert cid < NUM_CLIENTS
+    return FlowerClient(cid, data_path, dataset_name, num_classes, SERVER_CONFIG['strategy'], task).to_client()
+
+app = ClientApp(
+    client_fn,
+)

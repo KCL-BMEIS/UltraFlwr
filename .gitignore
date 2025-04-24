@@ -1,6 +1,6 @@
 # Ignore all datasets except baseline
 datasets/*
-!datasets/baseline
+# !datasets/baseline
 
 # Ignore everything in runs, logs, weights and results folder
 runs/*
@@ -10,6 +10,7 @@ results/*
 !logs/.gitkeep
 !weights/.gitkeep
 !results/.gitkeep
+
 
 # Ignore any folder called runs anywhere in the tree
 **/runs/
