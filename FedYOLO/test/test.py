@@ -15,7 +15,10 @@ parser.add_argument('--dataset_name', type=str, default='baseline')
 parser.add_argument('--strategy_name', type=str, default='FedAvg')
 parser.add_argument('--client_num', type=int, default=1)
 parser.add_argument('--scoring_style', type=str, default="client-client")
-
+parser.add_argument('--print_env_only', type=str, default='false')
+parser.add_argument('--print_matrix_only', type=str, default='false')
+parser.add_argument('--print_env', type=str, default='true')
+parser.add_argument('--print_summary', type=str, default='true')
 args = parser.parse_args()
 
 dataset_name = args.dataset_name
@@ -23,6 +26,12 @@ strategy_name = args.strategy_name
 client_num = args.client_num
 scoring_style = args.scoring_style
 num_rounds = SERVER_CONFIG['rounds']
+
+# Convert string boolean arguments to actual booleans
+print_env_only = args.print_env_only.lower() == 'true'
+print_matrix_only = args.print_matrix_only.lower() == 'true'
+print_env = args.print_env.lower() == 'true'
+print_summary = args.print_summary.lower() == 'true'
 
 # Create a test execution tracker
 test_execution_summary = []
@@ -201,6 +210,13 @@ def server_client_metrics(client_number, dataset_name, strategy_name, num_rounds
     client_data_path = client_cfg['data_path'] # Use the full path from config
     client_task = client_cfg.get('task', 'detect')  # Default to 'detect' if not specified
 
+    # Task Mismatch Check - add the same check as in client_server_metrics
+    if client_task == 'segment' and dataset_name == 'baseline':
+        print(f"Skipping server-client test for client {client_number} (segment task) on dataset '{dataset_name}' (detect task). Incompatible.")
+        result = "Skipped (Task Mismatch)"
+        test_execution_summary.append([test_name, "Server-Client", strategy_name, client_dataset_name, result])
+        return None
+
     # Server weights path uses the base dataset_name
     weights_path = f"{HOME}/weights/model_round_{num_rounds}_{dataset_name}_Strategy_{strategy_name}.pt"
 
@@ -307,27 +323,50 @@ def print_environment_summary():
 
 def build_test_matrix():
     """Build a matrix of all possible tests that could be executed."""
-    # Client-Client tests
-    for client_id in CLIENT_CONFIG.keys():
-        dataset_name = CLIENT_CONFIG[client_id].get('dataset_name', 'unknown')
-        all_possible_tests.append([f"Client {client_id} on own data", "Client-Client", strategy_name, dataset_name, "Not Run"])
+    # If we're in matrix-only mode, load all strategies from the result files
+    if print_matrix_only:
+        all_strategies = set()
+        results_dir = f"{HOME}/test_results"
+        if os.path.exists(results_dir):
+            for filename in os.listdir(results_dir):
+                if filename.startswith("test_results_"):
+                    parts = filename.split('_')
+                    if len(parts) > 3:
+                        all_strategies.add(parts[3])  # Extract strategy name
+    else:
+        all_strategies = [strategy_name]
     
-    # Client-Server tests
-    for client_id in CLIENT_CONFIG.keys():
-        all_possible_tests.append([f"Client {client_id} on server data", "Client-Server", strategy_name, dataset_name, "Not Run"])
+    # Clear the existing list
+    all_possible_tests.clear()
     
-    # Server-Client tests
-    for client_id in CLIENT_CONFIG.keys():
-        client_dataset = CLIENT_CONFIG[client_id].get('dataset_name', 'unknown')
-        all_possible_tests.append([f"Server on Client {client_id} data", "Server-Client", strategy_name, client_dataset, "Not Run"])
-    
-    # Server-Server test
-    all_possible_tests.append([f"Server on server data", "Server-Server", strategy_name, dataset_name, "Not Run"])
+    # Build tests for each strategy
+    for strategy in all_strategies:
+        # Client-Client tests
+        for client_id in CLIENT_CONFIG.keys():
+            dataset_name = CLIENT_CONFIG[client_id].get('dataset_name', 'unknown')
+            all_possible_tests.append([f"Client {client_id} on own data", "Client-Client", strategy, dataset_name, "Not Run"])
+        
+        # Client-Server tests
+        for client_id in CLIENT_CONFIG.keys():
+            all_possible_tests.append([f"Client {client_id} on server data", "Client-Server", strategy, dataset_name, "Not Run"])
+        
+        # Server-Client tests
+        for client_id in CLIENT_CONFIG.keys():
+            client_dataset = CLIENT_CONFIG[client_id].get('dataset_name', 'unknown')
+            all_possible_tests.append([f"Server on Client {client_id} data", "Server-Client", strategy, client_dataset, "Not Run"])
+        
+        # Server-Server test
+        all_possible_tests.append([f"Server on server data", "Server-Server", strategy, dataset_name, "Not Run"])
     
 
 def print_test_matrix():
     """Print a comprehensive test matrix showing all possible tests and their execution status."""
     print_header("Test Matrix Summary")
+    
+    # Load all results if in matrix-only mode
+    if print_matrix_only:
+        global test_execution_summary
+        test_execution_summary = load_all_test_results()
     
     # Group tests by experiment type
     client_client_tests = []
@@ -388,72 +427,190 @@ def print_test_summary():
         print("No tests were executed.")
 
 
-# Build the test matrix before running any tests
-build_test_matrix()
+import json
+import os
 
-# Print environment summary at the start (only once)
-print_environment_summary()
+def save_test_results():
+    """Save current test execution results to a file."""
+    results_dir = f"{HOME}/test_results"
+    os.makedirs(results_dir, exist_ok=True)
+    
+    # Use a unique filename based on test parameters
+    filename = f"{results_dir}/test_results_{dataset_name}_{strategy_name}_{scoring_style}"
+    if scoring_style in ["client-client", "client-server", "server-client"]:
+        filename += f"_client{client_num}"
+    filename += ".json"
+    
+    # Save the test execution summary
+    with open(filename, 'w') as f:
+        json.dump(test_execution_summary, f)
+    
+def load_all_test_results():
+    """Load all test results from files and combine them."""
+    results_dir = f"{HOME}/test_results"
+    if not os.path.exists(results_dir):
+        return []
+        
+    all_results = []
+    for filename in os.listdir(results_dir):
+        if filename.startswith("test_results_") and filename.endswith(".json"):
+            try:
+                with open(f"{results_dir}/{filename}", 'r') as f:
+                    results = json.load(f)
+                    all_results.extend(results)
+            except Exception as e:
+                print(f"Error loading results from {filename}: {e}")
+    
+    return all_results
 
-# Determine if we should run based on the environment
-multi_task = is_multi_task_environment()
-partial_agg = is_partial_aggregation_strategy()
-
-skip_server_tests = multi_task or partial_agg
-if skip_server_tests:
-    print_header(f"Skipping server-based tests for STRATEGY={strategy_name} (multi-task or partial aggregation)")
-
-if scoring_style == "client-client":
-    print_header(f"Running client-dependent test: client_num={client_num}, scoring_style=client-client")
-    client_client_metrics(client_num, dataset_name, strategy_name)
-elif scoring_style == "client-server":
-    print_header(f"Running client-dependent test: client_num={client_num}, scoring_style=client-server")
-    if skip_server_tests:
-        print(f"Skipping client-server test: multi-task environment or partial aggregation strategy detected.")
-        test_execution_summary.append([
-            f"Client {client_num} on server data", 
-            "Client-Server",
-            strategy_name, 
-            dataset_name, 
-            "Skipped (Multi-task/Partial Aggregation)"
-        ])
+def execute_test_by_scoring_style(scoring_style, client_num, dataset_name, strategy_name, num_rounds, skip_server_tests):
+    """
+    Execute the appropriate test based on the specified scoring style.
+    
+    Args:
+        scoring_style: Type of test to run (client-client, client-server, server-client, server-server).
+        client_num: Client number to test.
+        dataset_name: Name of the dataset being tested.
+        strategy_name: Name of the federated learning strategy.
+        num_rounds: Number of training rounds.
+        skip_server_tests: Whether to skip server-based tests.
+        
+    Returns:
+        None
+    
+    Note: 
+        Results are added to the global test_execution_summary list.
+    """
+    if scoring_style == "client-client":
+        print_header(f"Running client-dependent test: client_num={client_num}, scoring_style=client-client")
+        client_client_metrics(client_num, dataset_name, strategy_name)
+    elif scoring_style == "client-server":
+        print_header(f"Running client-dependent test: client_num={client_num}, scoring_style=client-server")
+        if skip_server_tests:
+            print(f"Skipping client-server test: multi-task environment or partial aggregation strategy detected.")
+            test_execution_summary.append([
+                f"Client {client_num} on server data", 
+                "Client-Server",
+                strategy_name, 
+                dataset_name, 
+                "Skipped (Multi-task/Partial Aggregation)"
+            ])
+        else:
+            client_server_metrics(client_num, dataset_name, strategy_name)
+    elif scoring_style == "server-client":
+        print_header(f"Running server-client test: client_num={client_num}")
+        if skip_server_tests:
+            print(f"Skipping server-client test for STRATEGY={strategy_name} (multi-task or partial aggregation)")
+            client_cfg = CLIENT_CONFIG[client_num]
+            client_dataset_name = client_cfg.get('dataset_name', 'unknown')
+            test_execution_summary.append([
+                f"Server on Client {client_num} data", 
+                "Server-Client",
+                strategy_name, 
+                client_dataset_name, 
+                "Skipped (Multi-task/Partial Aggregation)"
+            ])
+        else:
+            server_client_metrics(client_num, dataset_name, strategy_name, num_rounds)
+    elif scoring_style == "server-server":
+        print_header(f"Running server-server test")
+        if skip_server_tests:
+            print(f"Skipping server-server test for STRATEGY={strategy_name} (multi-task or partial aggregation)")
+            test_execution_summary.append([
+                "Server on server data", 
+                "Server-Server",
+                strategy_name, 
+                dataset_name, 
+                "Skipped (Multi-task/Partial Aggregation)"
+            ])
+        else:
+            server_server_metrics(dataset_name, strategy_name, num_rounds)
     else:
-        client_server_metrics(client_num, dataset_name, strategy_name)
-elif scoring_style == "server-client":
-    print_header(f"Running server-client test: client_num={client_num}")
-    if skip_server_tests:
-        print(f"Skipping server-client test for STRATEGY={strategy_name} (multi-task or partial aggregation)")
-        client_cfg = CLIENT_CONFIG[client_num]
-        client_dataset_name = client_cfg.get('dataset_name', 'unknown')
-        test_execution_summary.append([
-            f"Server on Client {client_num} data", 
-            "Server-Client",
-            strategy_name, 
-            client_dataset_name, 
-            "Skipped (Multi-task/Partial Aggregation)"
-        ])
-    else:
-        server_client_metrics(client_num, dataset_name, strategy_name, num_rounds)
-elif scoring_style == "server-server":
-    print_header(f"Running server-server test")
-    if skip_server_tests:
-        print(f"Skipping server-server test for STRATEGY={strategy_name} (multi-task or partial aggregation)")
-        test_execution_summary.append([
+        if skip_server_tests:
+            print(f"Skipping {scoring_style} test: multi-task environment or partial aggregation strategy detected.")
+        else:
+            raise ValueError(f"Invalid scoring_style: {scoring_style}")
+
+def mark_skipped_tests(skip_server_tests, current_scoring_style, dataset_name, strategy_name):
+    """
+    Mark tests as skipped in the test_execution_summary when using multi-task or partial aggregation.
+    
+    Args:
+        skip_server_tests: Boolean indicating whether to skip server-based tests.
+        current_scoring_style: The current test scoring style being executed.
+        dataset_name: Name of the dataset being tested.
+        strategy_name: Name of the federated learning strategy.
+        
+    Returns:
+        None
+        
+    Note:
+        Modifies the global test_execution_summary list.
+    """
+    if not skip_server_tests:
+        return
+        
+    # Mark server-client tests as skipped
+    if current_scoring_style != "server-client":
+        for client_id in CLIENT_CONFIG.keys():
+            client_cfg = CLIENT_CONFIG[client_id]
+            client_dataset_name = client_cfg.get('dataset_name', 'unknown')
+            entry = [
+                f"Server on Client {client_id} data", 
+                "Server-Client",
+                strategy_name, 
+                client_dataset_name, 
+                "Skipped (Multi-task/Partial Aggregation)"
+            ]
+            # Only add if not already in the summary
+            if not any(t[0] == entry[0] and t[1] == entry[1] for t in test_execution_summary):
+                test_execution_summary.append(entry)
+
+    # Mark server-server test as skipped
+    if current_scoring_style != "server-server":
+        entry = [
             "Server on server data", 
             "Server-Server",
             strategy_name, 
             dataset_name, 
             "Skipped (Multi-task/Partial Aggregation)"
-        ])
-    else:
-        server_server_metrics(dataset_name, strategy_name, num_rounds)
-else:
-    if multi_task or partial_agg:
-        print(f"Skipping {scoring_style} test: multi-task environment or partial aggregation strategy detected.")
-    else:
-        raise ValueError(f"Invalid scoring_style: {scoring_style}")
+        ]
+        if not any(t[0] == entry[0] and t[1] == entry[1] for t in test_execution_summary):
+            test_execution_summary.append(entry)
 
-# Print brief execution summary
-print_test_summary()
+# Build the test matrix before running any tests
+build_test_matrix()
 
-# Print comprehensive test matrix at the end
-print_test_matrix()
+# Determine if we should run based on the environment
+multi_task = is_multi_task_environment()
+partial_agg = is_partial_aggregation_strategy()
+skip_server_tests = multi_task or partial_agg
+
+# Special modes for printing just environment or matrix
+if print_env_only:
+    print_environment_summary()
+    sys.exit(0)
+
+if print_matrix_only:
+    print_test_matrix()
+    sys.exit(0)
+
+# Regular test execution
+if print_env:
+    print_environment_summary()
+
+if skip_server_tests:
+    print_header(f"Skipping server-based tests for STRATEGY={strategy_name} (multi-task or partial aggregation)")
+
+# Execute the appropriate test based on scoring style
+execute_test_by_scoring_style(scoring_style, client_num, dataset_name, strategy_name, num_rounds, skip_server_tests)
+
+# Mark tests as skipped in multi-task/partial aggregation environments
+mark_skipped_tests(skip_server_tests, scoring_style, dataset_name, strategy_name)
+    
+# Save the test results to file for future summaries
+save_test_results()
+
+# Print brief execution summary at the end of each individual test run
+if print_summary:
+    print_test_summary()
