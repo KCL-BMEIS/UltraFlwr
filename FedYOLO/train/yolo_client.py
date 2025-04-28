@@ -9,6 +9,8 @@ from flwr.common import Context
 from flwr.client import ClientApp
 from FedYOLO.test.extract_final_save_from_client import extract_results_path
 from FedYOLO.train.server_utils import write_yolo_config
+# Import the function from strategies
+from FedYOLO.train.strategies import get_section_parameters
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -21,28 +23,6 @@ NUM_CLIENTS = SERVER_CONFIG['max_num_clients']
 def train(net, data_path, cid, strategy, task):
     net.train(data=data_path, epochs=YOLO_CONFIG['epochs'], workers=0, seed=cid, 
               batch=YOLO_CONFIG['batch_size'], project=strategy, task=task)
-
-def get_section_parameters(state_dict: OrderedDict) -> tuple[dict, dict, dict]:
-    """Get parameters for each section of the model."""
-    # Backbone parameters (early layers through conv layers)
-    backbone_weights = {
-        k: v for k, v in state_dict.items() 
-        if not k.startswith(('model.17', 'model.20', 'model.21', 'model.22', 'model.23'))
-    }
-    
-    # Neck parameters (SPPF and FPN layers)
-    neck_weights = {
-        k: v for k, v in state_dict.items() 
-        if k.startswith(('model.17', 'model.20', 'model.21', 'model.22'))
-    }
-    
-    # Head parameters (detection head)
-    head_weights = {
-        k: v for k, v in state_dict.items() 
-        if k.startswith('model.23')
-    }
-    
-    return backbone_weights, neck_weights, head_weights
 
 class FlowerClient(fl.client.NumPyClient):
     def __init__(self, cid, data_path, dataset_name, num_classes, strategy_name, task):
@@ -62,17 +42,12 @@ class FlowerClient(fl.client.NumPyClient):
         self.task = task
 
     def get_parameters(self):
-        return [val.cpu().numpy() for _, val in self.net.model.state_dict().items()]
-
-    def set_parameters(self, parameters):
-        # Zip server parameters with model state_dict keys
-        params_dict = zip(self.net.model.state_dict().keys(), parameters)
-        
-        # Get current client model state and split into sections
+        """Get relevant model parameters based on the strategy."""
         current_state_dict = self.net.model.state_dict()
+        # Use the imported function
         backbone_weights, neck_weights, head_weights = get_section_parameters(current_state_dict)
-        
-        # Define strategy groups for backbone, neck, and head updates
+
+        # Define strategy groups (same as in set_parameters) - Corrected lists
         backbone_strategies = [
             'FedAvg', 'FedBackboneAvg', 'FedBackboneHeadAvg', 'FedBackboneNeckAvg',
             'FedMedian', 'FedBackboneMedian', 'FedBackboneHeadMedian', 'FedBackboneNeckMedian'
@@ -85,24 +60,70 @@ class FlowerClient(fl.client.NumPyClient):
             'FedAvg', 'FedHeadAvg', 'FedNeckHeadAvg', 'FedBackboneHeadAvg',
             'FedMedian', 'FedHeadMedian', 'FedNeckHeadMedian', 'FedBackboneHeadMedian'
         ]
+
+        # Determine which parts to send based on strategy
+        send_backbone = self.strategy_name in backbone_strategies
+        send_neck = self.strategy_name in neck_strategies
+        send_head = self.strategy_name in head_strategies
+
+        relevant_parameters = []
+        for k, v in current_state_dict.items():
+            if (send_backbone and k in backbone_weights) or \
+               (send_neck and k in neck_weights) or \
+               (send_head and k in head_weights):
+                relevant_parameters.append(v.cpu().numpy())
         
+        return relevant_parameters
+
+    def set_parameters(self, parameters):
+        """Set relevant model parameters based on the strategy."""
+        current_state_dict = self.net.model.state_dict()
+        # Use the imported function
+        backbone_weights, neck_weights, head_weights = get_section_parameters(current_state_dict)
+
+        # Define strategy groups - Corrected lists
+        backbone_strategies = [
+            'FedAvg', 'FedBackboneAvg', 'FedBackboneHeadAvg', 'FedBackboneNeckAvg',
+            'FedMedian', 'FedBackboneMedian', 'FedBackboneHeadMedian', 'FedBackboneNeckMedian'
+        ]
+        neck_strategies = [
+            'FedAvg', 'FedNeckAvg', 'FedNeckHeadAvg', 'FedBackboneNeckAvg',
+            'FedMedian', 'FedNeckMedian', 'FedNeckHeadMedian', 'FedBackboneNeckMedian'
+        ]
+        head_strategies = [
+            'FedAvg', 'FedHeadAvg', 'FedNeckHeadAvg', 'FedBackboneHeadAvg',
+            'FedMedian', 'FedHeadMedian', 'FedNeckHeadMedian', 'FedBackboneHeadMedian'
+        ]
+
         # Determine which parts to update based on strategy
         update_backbone = self.strategy_name in backbone_strategies
         update_neck = self.strategy_name in neck_strategies
         update_head = self.strategy_name in head_strategies
-        
-        # Prepare updated weights
-        updated_weights = {}
-        # Note params_dict is from server
-        for k, v in params_dict:
-            if (update_backbone and k in backbone_weights) or \
-            (update_neck and k in neck_weights) or \
-            (update_head and k in head_weights):
-                updated_weights[k] = torch.tensor(v)
 
-        # Load updated parameters into the model
-        updated_state_dict = OrderedDict(updated_weights)
-        self.net.model.load_state_dict(updated_state_dict, strict=False)
+        # Identify the keys corresponding to the parameters received from the server
+        relevant_keys = []
+        for k in current_state_dict.keys():
+             if (update_backbone and k in backbone_weights) or \
+                (update_neck and k in neck_weights) or \
+                (update_head and k in head_weights):
+                 relevant_keys.append(k)
+
+        # Ensure the number of parameters received matches the number of relevant keys
+        if len(parameters) != len(relevant_keys):
+             raise ValueError(f"Mismatch in parameter count: received {len(parameters)}, expected {len(relevant_keys)} for strategy {self.strategy_name}")
+
+        # Zip the relevant keys with the received parameters
+        params_dict = zip(relevant_keys, parameters)
+        
+        # Prepare updated weights dictionary using only the received parameters
+        updated_weights = {k: torch.tensor(v) for k, v in params_dict}
+
+        # Load the updated parameters into the model, keeping existing weights for other parts
+        # Create a full state dict for loading, merging updated weights with existing ones
+        final_state_dict = current_state_dict.copy()
+        final_state_dict.update(updated_weights)
+
+        self.net.model.load_state_dict(final_state_dict, strict=True) # Use strict=True if all expected keys are present
 
     def fit(self, parameters, config):
         if config["server_round"] != 1:
@@ -116,8 +137,9 @@ class FlowerClient(fl.client.NumPyClient):
 
             self.net = YOLO(weights)
 
-        self.set_parameters(parameters) # this needs to be modified so we only asign parts of the weights
+        self.set_parameters(parameters) # Now handles partial updates
         train(self.net, self.data_path, self.cid, f"logs/Ultralytics_logs/{self.strategy_name}_{self.dataset_name}_{self.cid}", self.task)
+        # Return only the relevant parameters based on the strategy
         return self.get_parameters(), 10, {}
     
 def client_fn(context: Context):

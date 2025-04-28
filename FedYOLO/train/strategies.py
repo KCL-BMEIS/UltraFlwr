@@ -1,7 +1,7 @@
 import time
 import torch
 from collections import OrderedDict
-from typing import Optional, Union
+from typing import Optional, Union, Tuple # Add Tuple
 
 import flwr as fl
 from flwr.common import parameters_to_ndarrays, FitRes, Parameters, Scalar
@@ -12,6 +12,30 @@ from ultralytics import YOLO
 
 from FedYOLO.train.server_utils import save_model_checkpoint
 from FedYOLO.config import SPLITS_CONFIG, HOME
+
+# Define get_section_parameters as a standalone function
+def get_section_parameters(state_dict: OrderedDict) -> Tuple[dict, dict, dict]:
+    """Get parameters for each section of the model."""
+    # Backbone parameters (early layers through conv layers)
+    backbone_weights = {
+        k: v for k, v in state_dict.items()
+        if not k.startswith(('model.17', 'model.20', 'model.21', 'model.22', 'model.23'))
+    }
+
+    # Neck parameters (SPPF and FPN layers)
+    neck_weights = {
+        k: v for k, v in state_dict.items()
+        if k.startswith(('model.17', 'model.20', 'model.21', 'model.22'))
+    }
+
+    # Head parameters (detection head)
+    head_weights = {
+        k: v for k, v in state_dict.items()
+        if k.startswith('model.23')
+    }
+
+    return backbone_weights, neck_weights, head_weights
+
 
 class BaseYOLOSaveStrategy(fl.server.strategy.FedAvg):
     """Base class for custom FL strategies to save YOLO model checkpoints."""
@@ -29,48 +53,42 @@ class BaseYOLOSaveStrategy(fl.server.strategy.FedAvg):
         self.initial_parameters = None  # Don't keep initial parameters in memory
         return initial_parameters
 
-    def get_section_parameters(self, state_dict: OrderedDict) -> tuple[dict, dict, dict]:
-        """Get parameters for each section of the model."""
-        # Backbone parameters (early layers through conv layers)
-        backbone_weights = {
-            k: v for k, v in state_dict.items() 
-            if not k.startswith(('model.17', 'model.20', 'model.21', 'model.22', 'model.23'))
-        }
-        
-        # Neck parameters (SPPF and FPN layers)
-        neck_weights = {
-            k: v for k, v in state_dict.items() 
-            if k.startswith(('model.17', 'model.20', 'model.21', 'model.22'))
-        }
-        
-        # Head parameters (detection head)
-        head_weights = {
-            k: v for k, v in state_dict.items() 
-            if k.startswith('model.23')
-        }
-        
-        return backbone_weights, neck_weights, head_weights
-
     def load_and_update_model(self, aggregated_parameters: Parameters) -> YOLO:
-        """Load YOLO model and update weights with aggregated parameters."""
+        """Load YOLO model and update weights with aggregated parameters based on strategy."""
         net = YOLO(self.model_path)
+        current_state_dict = net.model.state_dict()
+        # Call the standalone function
+        backbone_weights, neck_weights, head_weights = get_section_parameters(current_state_dict)
         aggregated_ndarrays = parameters_to_ndarrays(aggregated_parameters)
-        params_dict = zip(net.state_dict().keys(), aggregated_ndarrays)
-        
-        state_dict = net.state_dict()
-        backbone_weights, neck_weights, head_weights = self.get_section_parameters(state_dict)
-        
-        updated_weights = {}
-        
-        for k, v in params_dict:
-            # Only update sections based on strategy configuration
+
+        # Identify the keys corresponding to the parameters received (aggregated)
+        relevant_keys = []
+        for k in current_state_dict.keys():
             if (self.update_backbone and k in backbone_weights) or \
                (self.update_neck and k in neck_weights) or \
                (self.update_head and k in head_weights):
-                updated_weights[k] = torch.tensor(v)
+                relevant_keys.append(k)
+
+        # Ensure the number of aggregated parameters matches the number of relevant keys
+        if len(aggregated_ndarrays) != len(relevant_keys):
+            strategy_name = self.__class__.__name__ # Get the name of the current strategy class
+            raise ValueError(
+                f"Mismatch in aggregated parameter count for strategy {strategy_name}: "
+                f"received {len(aggregated_ndarrays)}, expected {len(relevant_keys)}"
+            )
+
+        # Zip the relevant keys with the aggregated parameters
+        params_dict = zip(relevant_keys, aggregated_ndarrays)
         
-        state_dict = OrderedDict(updated_weights)
-        net.load_state_dict(state_dict, strict=False)
+        # Prepare updated weights dictionary using only the aggregated parameters
+        updated_weights = {k: torch.tensor(v) for k, v in params_dict}
+
+        # Create a full state dict for loading, merging aggregated weights with existing ones
+        final_state_dict = current_state_dict.copy()
+        final_state_dict.update(updated_weights)
+
+        # Load the updated state dict into the model
+        net.model.load_state_dict(final_state_dict, strict=True) # Use strict=True as we are loading a full state dict
         return net
 
     def aggregate_fit(
