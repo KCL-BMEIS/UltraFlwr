@@ -16,7 +16,7 @@ CONFIG_FILE="FedYOLO/train/yolo_client.py"
 HOME=$(pwd)
 
 # List of datasets and strategies (similar to benchmark.sh)
-DATASET_NAME_LIST=("surg_od")
+DATASET_NAME_LIST=("surg_od" "Endonet_seg")
 STRATEGY_LIST=("FedNeckMedian")
 
 # Read CLIENT_CONFIG from Python file
@@ -29,7 +29,7 @@ fi
 # Install FedYOLO from pyproject.toml, uncomment if already installed
 if [[ -f "pyproject.toml" ]]; then
     echo "Installing FedYOLO package..."
-    pip install --no-cache-dir -e .
+    pip install --no-cache-dir -e . > /dev/null
 else
     echo "Error: pyproject.toml not found. Cannot install FedYOLO."
     exit 1
