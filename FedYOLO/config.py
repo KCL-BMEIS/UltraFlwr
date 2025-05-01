@@ -21,12 +21,12 @@ def generate_client_config(num_clients, dataset_path, client_tasks):
     }
 
 # Base Configuration
-BASE = "/home/localssk23"  # YOUR PATH CONTAINING UltraFlwr
+BASE = "/home/yang/Downloads/upgrade_flower"
 HOME = f"{BASE}/UltraFlwr"
 
 # Dataset Configuration
-DATASET_NAME = 'baseline'
-DATASET_NAME_SEG = 'baseline_seg'
+DATASET_NAME = 'surg_od'
+DATASET_NAME_SEG = 'Endonet_seg'
 DATASET_PATH = f'{HOME}/datasets/{DATASET_NAME}'
 DATASET_PATH_SEG = f'{HOME}/datasets/{DATASET_NAME_SEG}'
 DATA_YAML = f"{DATASET_PATH}/data.yaml"

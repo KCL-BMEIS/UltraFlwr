@@ -4,7 +4,10 @@
 SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
 cd $SCRIPTPATH
 
-cd ../../
+cd ../../../
+PATH_CONTAINING_PROJECT="$(pwd)"
+
+cd UltraFlwr
 
 # Default values for arguments
 SERVER_SCRIPT="FedYOLO/train/yolo_server.py"
@@ -18,6 +21,7 @@ if [[ ! -f "$CLIENT_CONFIG_FILE" ]]; then
     exit 1
 fi
 
+sed -i "s|^BASE = .*|BASE = \"$PATH_CONTAINING_PROJECT\"|" "$CLIENT_CONFIG_FILE"
 DATASET_NAME=$(python3 -c "from FedYOLO.config import SPLITS_CONFIG; print(SPLITS_CONFIG['dataset_name'])")
 STRATEGY_NAME=$(python3 -c "from FedYOLO.config import SERVER_CONFIG; print(SERVER_CONFIG['strategy'])")
 
