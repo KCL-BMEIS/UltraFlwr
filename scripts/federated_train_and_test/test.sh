@@ -3,7 +3,11 @@
 # navigate to directory
 SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
 cd $SCRIPTPATH
-cd ../../
+
+cd ../../../
+PATH_CONTAINING_PROJECT="$(pwd)"
+
+cd UltraFlwr
 
 PYTHON_SCRIPT="FedYOLO/test/test.py"
 CONFIG_FILE="FedYOLO/train/yolo_client.py"
@@ -12,9 +16,26 @@ CONFIG_FILE="FedYOLO/train/yolo_client.py"
 HOME=$(pwd)
 
 # List of datasets and strategies (similar to benchmark.sh)
-DATASET_NAME_LIST=("baseline")
+DATASET_NAME_LIST=("surg_od")
 STRATEGY_LIST=("FedNeckMedian")
 
+# Read CLIENT_CONFIG from Python file
+CLIENT_CONFIG_FILE="./FedYOLO/config.py"
+if [[ ! -f "$CLIENT_CONFIG_FILE" ]]; then
+    echo "Error: $CLIENT_CONFIG_FILE not found"
+    exit 1
+fi
+
+# Install FedYOLO from pyproject.toml, uncomment if already installed
+if [[ -f "pyproject.toml" ]]; then
+    echo "Installing FedYOLO package..."
+    pip install --no-cache-dir -e .
+else
+    echo "Error: pyproject.toml not found. Cannot install FedYOLO."
+    exit 1
+fi
+
+sed -i "s|^BASE = .*|BASE = \"$PATH_CONTAINING_PROJECT\"|" "$CLIENT_CONFIG_FILE"
 # Number of clients for client-dependent tests
 NUM_CLIENTS=$(python3 -c "from FedYOLO.config import NUM_CLIENTS; print(NUM_CLIENTS)")
 
