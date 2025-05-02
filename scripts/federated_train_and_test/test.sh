@@ -9,15 +9,10 @@ PATH_CONTAINING_PROJECT="$(pwd)"
 
 cd UltraFlwr
 
-PYTHON_SCRIPT="FedYOLO/test/test.py"
-CONFIG_FILE="FedYOLO/train/yolo_client.py"
-
 # Define the HOME directory for result storage
 HOME=$(pwd)
 
-# List of datasets and strategies (similar to benchmark.sh)
-DATASET_NAME_LIST=("surg_od" "Endonet_seg")
-STRATEGY_LIST=("FedNeckMedian")
+PYTHON_SCRIPT="FedYOLO/test/test.py"
 
 # Read CLIENT_CONFIG from Python file
 CLIENT_CONFIG_FILE="./FedYOLO/config.py"
@@ -36,71 +31,104 @@ else
 fi
 
 sed -i "s|^BASE = .*|BASE = \"$PATH_CONTAINING_PROJECT\"|" "$CLIENT_CONFIG_FILE"
+
+# List of datasets and strategies (similar to benchmark.sh)
+DATASET_NAME_LIST=("Endonet_seg")
+# STRATEGY_LIST=("FedAvg" "FedHeadAvg" "FedHeadMedian" "FedNeckAvg" "FedNeckMedian" "FedBackboneAvg" "FedBackboneMedian" "FedNeckHeadAvg" "FedNeckHeadMedian")
+STRATEGY_LIST=("FedNeckMedian")
+
 # Number of clients for client-dependent tests
 NUM_CLIENTS=$(python3 -c "from FedYOLO.config import NUM_CLIENTS; print(NUM_CLIENTS)")
+echo "Number of clients: $NUM_CLIENTS"
+
+# Read CLIENT_CONFIG as JSON
+CLIENT_CONFIG=$(python3 -c "
+import sys
+sys.path.append('./FedYOLO')
+from config import CLIENT_CONFIG
+import json
+print(json.dumps(CLIENT_CONFIG))
+")
+
+# Parse CLIENT_CONFIG using jq
+echo "Client Configuration:"
+echo "$CLIENT_CONFIG" | jq
 
 # Define scoring styles
 CLIENT_DEPENDENT_STYLES=("client-client" "client-server" "server-client")
 CLIENT_INDEPENDENT_STYLES=("server-server")
 
-# Function to check if strategy contains head, neck, or backbone
-should_skip_server() {
-    local strategy=$1
-    if [[ "$strategy" == *"Head"* || "$strategy" == *"Neck"* || "$strategy" == *"Backbone"* ]]; then
-        return 0  # true (skip server-server or server-client tests)
-    else
-        return 1  # false (run all tests)
+# Initialize a variable to store the first client's task
+FIRST_TASK=$(echo "$CLIENT_CONFIG" | jq -r '."0".task')
+ALL_TASKS_SAME=true  # Assume all tasks are the same initially
+
+for ((CLIENT_ID=0; CLIENT_ID<NUM_CLIENTS; CLIENT_ID++)); do
+    CLIENT_TASK=$(echo "$CLIENT_CONFIG" | jq -r ".\"$CLIENT_ID\".task")
+
+    # Compare the current client's task with the first client's task
+    if [[ "$CLIENT_TASK" != "$FIRST_TASK" ]]; then
+        ALL_TASKS_SAME=false
+        break
     fi
-}
-
-# Clear previous test results directory
-echo "Clearing previous test results directory..."
-rm -rf "$HOME/test_results"
-
-# First, print the environment summary and client config once at the beginning
-echo "Running initial environment summary..."
-python3 "$PYTHON_SCRIPT" --dataset_name "${DATASET_NAME_LIST[0]}" --strategy_name "${STRATEGY_LIST[0]}" --print_env_only true
-
-# Loop over datasets and strategies for actual tests
-for DATASET_NAME in "${DATASET_NAME_LIST[@]}"; do
-    for STRATEGY in "${STRATEGY_LIST[@]}"; do
-        echo "===================================================================="
-        echo "Running tests for DATASET_NAME=${DATASET_NAME}, STRATEGY=${STRATEGY}"
-        echo "===================================================================="
-
-        # Modify config.py file to set the current dataset and strategy
-        sed -i "s/^DATASET_NAME = .*/DATASET_NAME = '${DATASET_NAME}'/" "$CONFIG_FILE"
-        sed -i "s/^\s*'strategy': .*/    'strategy': '${STRATEGY}',/" "$CONFIG_FILE"
-        
-        # Run client-independent (server-server) tests
-        if ! should_skip_server "$STRATEGY"; then
-            for SCORING_STYLE in "${CLIENT_INDEPENDENT_STYLES[@]}"; do
-                echo "Running client-independent test: scoring_style=${SCORING_STYLE}"
-                python3 "$PYTHON_SCRIPT" --dataset_name "$DATASET_NAME" --strategy_name "$STRATEGY" --scoring_style "$SCORING_STYLE" --print_summary false --print_env false
-                echo ""
-            done
-        else
-            echo "Skipping server-based tests for STRATEGY=${STRATEGY} (contains head/neck/backbone)"
-            echo ""
-        fi
-
-        # Run client-dependent tests
-        for ((CLIENT_NUM=0; CLIENT_NUM<NUM_CLIENTS; CLIENT_NUM++)); do
-            for SCORING_STYLE in "${CLIENT_DEPENDENT_STYLES[@]}"; do                
-                if should_skip_server "$STRATEGY" && [[ "$SCORING_STYLE" == "server-client" ]]; then
-                    echo "Skipping server-client test for STRATEGY=${STRATEGY} (contains head/neck/backbone)"
-                    echo ""
-                    continue
-                fi
-
-                echo "Running client-dependent test: client_num=${CLIENT_NUM}, scoring_style=${SCORING_STYLE}"
-                python3 "$PYTHON_SCRIPT" --dataset_name "$DATASET_NAME" --strategy_name "$STRATEGY" --client_num "$CLIENT_NUM" --scoring_style "$SCORING_STYLE" --print_summary false --print_env false
-                echo ""
-            done
-        done
-    done
 done
 
-# Finally, print the test matrix summary once at the end
-echo "Generating final test matrix summary..."
-python3 "$PYTHON_SCRIPT" --dataset_name "${DATASET_NAME_LIST[0]}" --strategy_name "${STRATEGY_LIST[0]}" --print_matrix_only true
+# Output the result
+if [[ "$ALL_TASKS_SAME" == true ]]; then
+    echo "All clients have the same task: $FIRST_TASK"
+else
+    echo "Clients have different tasks."
+fi
+
+# Loops over strategies
+for STRATEGY in "${STRATEGY_LIST[@]}"; do
+    echo "===================================================================="
+    echo "Running tests for STRATEGY=${STRATEGY}"
+    echo "===================================================================="
+
+    IS_PARTIAL_AGGREGATION=false
+
+    # Check if STRATEGY contains head, neck, or backbone
+    if [[ "$STRATEGY" == *"Head"* || "$STRATEGY" == *"Neck"* || "$STRATEGY" == *"Backbone"* ]]; then
+        IS_PARTIAL_AGGREGATION=true
+    fi
+
+    # Loops over clients
+    for ((CLIENT_ID=0; CLIENT_ID<NUM_CLIENTS; CLIENT_ID++)); do
+        CLIENT_DATA=$(echo "$CLIENT_CONFIG" | jq ".\"$CLIENT_ID\"")  # Access key as a string
+        CLIENT_TASK=$(echo "$CLIENT_DATA" | jq -r '.task')
+        CLIENT_DATASET=$(echo "$CLIENT_DATA" | jq -r '.data_path')
+        CLIENT_DATASET_NAME=$(echo "$CLIENT_DATA" | jq -r '.dataset_name')
+
+        echo "Processing Client $CLIENT_ID"
+        echo "  Task: $CLIENT_TASK"
+        echo "  Dataset Path: $CLIENT_DATASET"
+        echo "  Dataset Name: $CLIENT_DATASET_NAME"
+
+        # Evaluate the client on it's own data
+        echo "Evaluating Client $CLIENT_ID on its own data"
+        python3 "$PYTHON_SCRIPT" --dataset_name "$CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --client_num "$CLIENT_ID" --scoring_style "client-client"
+
+        if [[ "$ALL_TASKS_SAME" == true ]]; then
+            # Evaluate the client on data from all other clients
+            for ((OTHER_CLIENT_ID=0; OTHER_CLIENT_ID<NUM_CLIENTS; OTHER_CLIENT_ID++)); do
+                if [[ "$CLIENT_ID" -ne "$OTHER_CLIENT_ID" ]]; then
+                    OTHER_CLIENT_DATA=$(echo "$CLIENT_CONFIG" | jq ".\"$OTHER_CLIENT_ID\"")
+                    OTHER_CLIENT_DATASET_NAME=$(echo "$OTHER_CLIENT_DATA" | jq -r '.dataset_name')
+
+                    echo "Evaluating Client $CLIENT_ID on data from Client $OTHER_CLIENT_ID..."
+                    python3 "$PYTHON_SCRIPT" --dataset_name "$OTHER_CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --client_num "$CLIENT_ID" --scoring_style "client-client"
+                fi
+            done
+
+            # Evaluate the client on data from the server
+            echo "Evaluating Client $CLIENT_ID on data from the server..."
+            python3 "$PYTHON_SCRIPT" --dataset_name "$CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --client_num "$CLIENT_ID" --scoring_style "client-server"
+
+            if [[ "$IS_PARTIAL_AGGREGATION" == false ]]; then
+                # Evaluate the client on data from the server
+                echo "Evaluating server model on data from the server..."
+                python3 "$PYTHON_SCRIPT" --dataset_name "$CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --scoring_style "server-server"
+            fi
+        fi
+    done
+done
