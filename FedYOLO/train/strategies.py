@@ -48,7 +48,7 @@ class BaseYOLOSaveStrategy(fl.server.strategy.FedAvg):
         self, client_manager: ClientManager
     ) -> Optional[Parameters]:
         """Initialize global model parameters."""
-        time.sleep(30) # wait for clients to initialise
+        # time.sleep(30) # wait for clients to initialise
         initial_parameters = self.initial_parameters
         self.initial_parameters = None  # Don't keep initial parameters in memory
         return initial_parameters
