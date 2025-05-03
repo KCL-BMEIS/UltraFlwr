@@ -106,7 +106,7 @@ for STRATEGY in "${STRATEGY_LIST[@]}"; do
 
         # Evaluate the client on it's own data
         echo "Evaluating Client $CLIENT_ID on its own data"
-        python3 "$PYTHON_SCRIPT" --dataset_name "$CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --client_num "$CLIENT_ID" --scoring_style "client-client"
+        python3 "$PYTHON_SCRIPT" --dataset_name "$CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --client_num "$CLIENT_ID" --scoring_style "client-client" --task "$CLIENT_TASK"
 
         if [[ "$ALL_TASKS_SAME" == true ]]; then
             # Evaluate the client on data from all other clients
@@ -116,18 +116,18 @@ for STRATEGY in "${STRATEGY_LIST[@]}"; do
                     OTHER_CLIENT_DATASET_NAME=$(echo "$OTHER_CLIENT_DATA" | jq -r '.dataset_name')
 
                     echo "Evaluating Client $CLIENT_ID on data from Client $OTHER_CLIENT_ID..."
-                    python3 "$PYTHON_SCRIPT" --dataset_name "$OTHER_CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --client_num "$CLIENT_ID" --scoring_style "client-client"
+                    python3 "$PYTHON_SCRIPT" --dataset_name "$OTHER_CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --client_num "$CLIENT_ID" --scoring_style "client-client" --task "$CLIENT_TASK"
                 fi
             done
 
             # Evaluate the client on data from the server
             echo "Evaluating Client $CLIENT_ID on data from the server..."
-            python3 "$PYTHON_SCRIPT" --dataset_name "$CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --client_num "$CLIENT_ID" --scoring_style "client-server"
+            python3 "$PYTHON_SCRIPT" --dataset_name "$CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --client_num "$CLIENT_ID" --scoring_style "client-server" --task "$CLIENT_TASK"
 
             if [[ "$IS_PARTIAL_AGGREGATION" == false ]]; then
                 # Evaluate the client on data from the server
                 echo "Evaluating server model on data from the server..."
-                python3 "$PYTHON_SCRIPT" --dataset_name "$CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --scoring_style "server-server"
+                python3 "$PYTHON_SCRIPT" --dataset_name "$CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --scoring_style "server-server" --task "$CLIENT_TASK"
             fi
         fi
     done
