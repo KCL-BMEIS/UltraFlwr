@@ -26,13 +26,15 @@ HOME = f"{BASE}/UltraFlwr"
 
 # --- Multi-client, multi-task configuration ---
 
-# List of detection and segmentation datasets
+# List of detection, segmentation, and pose datasets
 DETECTION_DATASETS = ['surg_od']
 SEGMENTATION_DATASETS = ['Endonet_seg']
+POSE_DATASETS = ['pose'] 
 
 # --- Generalized approach: specify number of clients per dataset as a dictionary ---
 DETECTION_CLIENTS = {'surg_od': 1}         # dataset_name: num_clients
 SEGMENTATION_CLIENTS = {'Endonet_seg': 1}  # dataset_name: num_clients
+POSE_CLIENTS = {'pose': 1} 
 
 client_specs = []
 for ds, n_clients in DETECTION_CLIENTS.items():
@@ -41,6 +43,9 @@ for ds, n_clients in DETECTION_CLIENTS.items():
 for ds, n_clients in SEGMENTATION_CLIENTS.items():
     for i in range(n_clients):
         client_specs.append({'dataset_name': ds, 'task': 'segment', 'client_idx': i})
+for ds, n_clients in POSE_CLIENTS.items():
+    for i in range(n_clients):
+        client_specs.append({'dataset_name': ds, 'task': 'pose', 'client_idx': i})
 
 NUM_CLIENTS = len(client_specs)
 
@@ -68,12 +73,16 @@ CLIENT_RATIOS = [1/NUM_CLIENTS] * NUM_CLIENTS
 # For backward compatibility, set the first detection and segmentation dataset names
 DATASET_NAME = DETECTION_DATASETS[0] if DETECTION_DATASETS else ''
 DATASET_NAME_SEG = SEGMENTATION_DATASETS[0] if SEGMENTATION_DATASETS else ''
+DATASET_NAME_POSE = POSE_DATASETS[0] if POSE_DATASETS else ''
 DATASET_PATH = f'{HOME}/datasets/{DATASET_NAME}'
 DATASET_PATH_SEG = f'{HOME}/datasets/{DATASET_NAME_SEG}'
+DATASET_PATH_POSE = f'{HOME}/datasets/{DATASET_NAME_POSE}'
 DATA_YAML = f"{DATASET_PATH}/data.yaml"
 DATA_YAML_SEG = f"{DATASET_PATH_SEG}/data.yaml"
+DATA_YAML_POSE = f"{DATASET_PATH_POSE}/data.yaml"
 NC = get_nc_from_yaml(DATA_YAML) if DATASET_NAME else None
 NC_SEG = get_nc_from_yaml(DATA_YAML_SEG) if DATASET_NAME_SEG else None
+NC_POSE = get_nc_from_yaml(DATA_YAML_POSE) if DATASET_NAME_POSE else None
 
 SPLITS_CONFIG = {
     'dataset_name': DATASET_NAME,

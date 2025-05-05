@@ -14,15 +14,12 @@ from FedYOLO.train.strategies import get_section_parameters
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
-# parser = argparse.ArgumentParser()
-# parser.add_argument("--cid", type=int, required=True)
-# parser.add_argument("--data_path", type=str, default="./client_0_assets/dummy_data_0/data.yaml")
 
 NUM_CLIENTS = SERVER_CONFIG['max_num_clients']
 
-def train(net, data_path, cid, strategy, task):
+def train(net, data_path, cid, strategy):
     net.train(data=data_path, epochs=YOLO_CONFIG['epochs'], workers=0, seed=cid, 
-              batch=YOLO_CONFIG['batch_size'], project=strategy, task=task)
+              batch=YOLO_CONFIG['batch_size'], project=strategy)
 
 class FlowerClient(fl.client.NumPyClient):
     def __init__(self, cid, data_path, dataset_name, num_classes, strategy_name, task):
@@ -32,6 +29,8 @@ class FlowerClient(fl.client.NumPyClient):
         # Load segmentation weights or detection config
         if task == "segment":
             self.net = YOLO("yolo11n-seg.pt")
+        elif task == "pose":
+            self.net = YOLO("yolo11n-pose.pt")
         else:
             self.net = YOLO(yaml_path)
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -138,7 +137,7 @@ class FlowerClient(fl.client.NumPyClient):
             self.net = YOLO(weights)
 
         self.set_parameters(parameters) # Now handles partial updates
-        train(self.net, self.data_path, self.cid, f"logs/Ultralytics_logs/{self.strategy_name}_{self.dataset_name}_{self.cid}", self.task)
+        train(self.net, self.data_path, self.cid, f"logs/Ultralytics_logs/{self.strategy_name}_{self.dataset_name}_{self.cid}")
         # Return only the relevant parameters based on the strategy
         return self.get_parameters(), 10, {}
     
