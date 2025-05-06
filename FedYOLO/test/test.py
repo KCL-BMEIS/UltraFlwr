@@ -11,7 +11,7 @@ parser.add_argument('--dataset_name', type=str, default='baseline')
 parser.add_argument('--strategy_name', type=str, default='FedAvg')
 parser.add_argument('--client_num', type=int, default=1)
 parser.add_argument('--scoring_style', type=str, default="client-client")
-parser.add_argument('--task', type=str, default="detect", choices=["detect", "segment"], help="Task type: 'detect' for detection, 'segment' for segmentation")
+parser.add_argument('--task', type=str, default="detect", choices=["detect", "segment", "pose"], help="Task type: 'detect' for detection, 'segment' for segmentation, 'pose' for pose estimation")
 
 args = parser.parse_args()
 
@@ -62,6 +62,24 @@ def get_classwise_results_table(results, task):
         }
         # Calculate mean results (overall "all" row)
         mp, mr, map50, map5095 = results.seg.mean_results()
+
+    elif task == 'pose':
+        # Access pose-specific evaluation metrics
+        precision_values = results.pose.p
+        recall_values = results.pose.r
+        ap50_values = results.pose.ap50
+        ap50_95_values = results.pose.ap
+        # Ensure alignment between metrics and class names
+        num_classes = min(len(results.names), len(precision_values))
+        # Construct class-wise results table
+        class_wise_results = {
+            'precision': {results.names[idx]: precision_values[idx] for idx in range(num_classes)},
+            'recall': {results.names[idx]: recall_values[idx] for idx in range(num_classes)},
+            'mAP50': {results.names[idx]: ap50_values[idx] for idx in range(num_classes)},
+            'mAP50-95': {results.names[idx]: ap50_95_values[idx] for idx in range(num_classes)}
+        }
+        # Calculate mean results (overall "all" row)
+        mp, mr, map50, map5095 = results.pose.mean_results()
 
     else:
         raise ValueError(f"Invalid task: {task}")
