@@ -1,7 +1,7 @@
 import time
 import torch
 from collections import OrderedDict
-from typing import Optional, Union
+from typing import Optional, Union, Tuple
 
 import flwr as fl
 from flwr.common import parameters_to_ndarrays, FitRes, Parameters, Scalar
@@ -14,6 +14,53 @@ from ultralytics import YOLO
 from FedYOLO.train.server_utils import save_model_checkpoint
 from FedYOLO.config import SPLITS_CONFIG, HOME
 
+# Define get_section_parameters as a standalone function
+def get_section_parameters(state_dict: OrderedDict) -> Tuple[dict, dict, dict]:
+    """Get parameters for each section of the model."""
+    # Backbone parameters (early layers through conv layers)
+    # backbone corresponds to:
+    # (0): Conv
+    # (1): Conv
+    # (2): C3k2
+    # (3): Conv
+    # (4): C3k2
+    # (5): Conv
+    # (6): C3k2
+    # (7): Conv
+    # (8): C3k2
+    backbone_weights = {
+        k: v for k, v in state_dict.items()
+        if not k.startswith(tuple(f'model.{i}' for i in range(9, 24)))
+    }
+
+    # Neck parameters
+    # The neck consists of the following layers (by index in the Sequential container):
+    # (9): SPPF
+    # (10): C2PSA
+    # (11): Upsample
+    # (12): Concat
+    # (13): C3k2
+    # (14): Upsample
+    # (15): Concat
+    # (16): C3k2
+    # (17): Conv
+    # (18): Concat
+    # (19): C3k2
+    # (20): Conv
+    # (21): Concat
+    # (22): C3k2
+    neck_weights = {
+        k: v for k, v in state_dict.items()
+        if k.startswith(tuple(f'model.{i}' for i in range(9, 23)))
+    }
+
+    # Head parameters (detection head)
+    head_weights = {
+        k: v for k, v in state_dict.items()
+        if k.startswith('model.23')
+    }
+
+    return backbone_weights, neck_weights, head_weights
 
 class BaseYOLOSaveStrategy:
     """Base class for custom FL strategies to save YOLO model checkpoints."""
