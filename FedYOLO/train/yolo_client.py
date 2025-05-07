@@ -31,6 +31,8 @@ class FlowerClient(fl.client.NumPyClient):
             self.net = YOLO("yolo11n-seg.pt")
         elif task == "pose":
             self.net = YOLO("yolo11n-pose.pt")
+        elif task == "classify":
+            self.net = YOLO("yolo11n-cls.pt")
         else:
             self.net = YOLO(yaml_path)
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
