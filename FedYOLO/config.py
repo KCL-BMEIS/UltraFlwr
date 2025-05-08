@@ -2,11 +2,23 @@
 import os
 import yaml
 
-def get_nc_from_yaml(yaml_path):
-    """Get number of classes from data.yaml file."""
+def get_nc_from_yaml(yaml_path, task=None):
+    """Get number of classes from data.yaml file and update nc dynamically for pose tasks."""
     with open(yaml_path, 'r') as file:
         data = yaml.safe_load(file)
-    return data.get('nc', None)
+    
+    # Only update nc if the task is 'pose'
+    if task == 'pose':
+        num_classes = len(data.get('names', {}))
+        data['nc'] = num_classes  # Update nc dynamically
+
+        # Write the updated data back to the file
+        with open(yaml_path, 'w') as file:
+            yaml.safe_dump(data, file)
+    else:
+        num_classes = data.get('nc', None)
+
+    return num_classes
 
 def get_nc_from_classification_dataset(dataset_path):
     """Get number of classes by counting folders in train directory for classification datasets."""
@@ -47,9 +59,9 @@ CLASSIFICATION_DATASETS = ['mnist']
 
 # --- Generalized approach: specify number of clients per dataset as a dictionary ---
 DETECTION_CLIENTS = {'surg_od': 0}         # dataset_name: num_clients
-SEGMENTATION_CLIENTS = {'Endonet_seg': 0} 
+SEGMENTATION_CLIENTS = {'Endonet_seg': 2} 
 POSE_CLIENTS = {'pose': 1} 
-CLASSIFICATION_CLIENTS = {'mnist': 1}
+CLASSIFICATION_CLIENTS = {'mnist': 0}
 
 
 client_specs = []
@@ -83,7 +95,7 @@ for cid, spec in enumerate(client_specs):
     else:
         data_yaml = f"{dataset_path}/data.yaml"
         data_path = f"{dataset_path}/partitions/client_{client_idx}/data.yaml"
-        nc = get_nc_from_yaml(data_yaml)
+        nc = get_nc_from_yaml(data_yaml, task=task)  # Pass the task to the function
         
     CLIENT_CONFIG[cid] = {
         'cid': cid,
@@ -133,5 +145,5 @@ SERVER_CONFIG = {
 
 YOLO_CONFIG = {
     'batch_size': 2,
-    'epochs': 2,
+    'epochs': 1,
 }
