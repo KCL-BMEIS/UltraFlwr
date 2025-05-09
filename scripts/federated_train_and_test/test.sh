@@ -33,9 +33,9 @@ fi
 sed -i "s|^BASE = .*|BASE = \"$PATH_CONTAINING_PROJECT\"|" "$CLIENT_CONFIG_FILE"
 
 # List of datasets and strategies (similar to benchmark.sh)
-DATASET_NAME_LIST=("Endonet_seg")
+# DATASET_NAME_LIST=("mnist")
 # STRATEGY_LIST=("FedAvg" "FedHeadAvg" "FedHeadMedian" "FedNeckAvg" "FedNeckMedian" "FedBackboneAvg" "FedBackboneMedian" "FedNeckHeadAvg" "FedNeckHeadMedian")
-STRATEGY_LIST=("FedNeckMedian")
+STRATEGY_LIST=("FedBackboneMedian")
 
 # Number of clients for client-dependent tests
 NUM_CLIENTS=$(python3 -c "from FedYOLO.config import NUM_CLIENTS; print(NUM_CLIENTS)")
@@ -111,7 +111,7 @@ for STRATEGY in "${STRATEGY_LIST[@]}"; do
 
         # Evaluate the client on its own data
         echo "Evaluating Client $CLIENT_ID on its own data"
-        python3 "$PYTHON_SCRIPT" --dataset_name "$CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --client_num "$CLIENT_ID" --scoring_style "client-client" --task "$CLIENT_TASK"
+        python3 "$PYTHON_SCRIPT" --dataset_name "$CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --client_num "$CLIENT_ID" --scoring_style "client-client" --task "$CLIENT_TASK" --data_path "$CLIENT_DATASET"
         TEST_SUMMARY+=("Client $CLIENT_ID evaluated on its own data with STRATEGY=$STRATEGY")
 
         if [[ "$ALL_TASKS_SAME" == true ]]; then
@@ -122,7 +122,7 @@ for STRATEGY in "${STRATEGY_LIST[@]}"; do
                     OTHER_CLIENT_DATASET_NAME=$(echo "$OTHER_CLIENT_DATA" | jq -r '.dataset_name')
 
                     echo "Evaluating Client $CLIENT_ID on data from Client $OTHER_CLIENT_ID..."
-                    python3 "$PYTHON_SCRIPT" --dataset_name "$OTHER_CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --client_num "$CLIENT_ID" --scoring_style "client-client" --task "$CLIENT_TASK"
+                    python3 "$PYTHON_SCRIPT" --dataset_name "$OTHER_CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --client_num "$CLIENT_ID" --scoring_style "client-client" --task "$CLIENT_TASK" --data_path "$CLIENT_DATASET"
                     TEST_SUMMARY+=("Client $CLIENT_ID evaluated on data from Client $OTHER_CLIENT_ID with STRATEGY=$STRATEGY")
                 fi
             done
@@ -137,6 +137,18 @@ for STRATEGY in "${STRATEGY_LIST[@]}"; do
                 echo "Evaluating server model on data from the server..."
                 python3 "$PYTHON_SCRIPT" --dataset_name "$CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --scoring_style "server-server" --task "$CLIENT_TASK"
                 TEST_SUMMARY+=("Server model evaluated on data from the server with STRATEGY=$STRATEGY")
+
+                # Evaluate the server model on data from all clients
+                for ((OTHER_CLIENT_ID=0; OTHER_CLIENT_ID<NUM_CLIENTS; OTHER_CLIENT_ID++)); do
+                    if [[ "$CLIENT_ID" -ne "$OTHER_CLIENT_ID" ]]; then
+                        OTHER_CLIENT_DATA=$(echo "$CLIENT_CONFIG" | jq ".\"$OTHER_CLIENT_ID\"")
+                        OTHER_CLIENT_DATASET_NAME=$(echo "$OTHER_CLIENT_DATA" | jq -r '.dataset_name')
+
+                        echo "Evaluating server model on data from Client $OTHER_CLIENT_ID..."
+                        python3 "$PYTHON_SCRIPT" --dataset_name "$OTHER_CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --scoring_style "server-client" --task "$CLIENT_TASK"  --data_path "$CLIENT_DATASET"
+                        TEST_SUMMARY+=("Server model evaluated on data from Client $OTHER_CLIENT_ID with STRATEGY=$STRATEGY")
+                    fi
+                done
             fi
         fi
     done
