@@ -18,28 +18,55 @@ warnings.filterwarnings("ignore", category=UserWarning)
 NUM_CLIENTS = SERVER_CONFIG['max_num_clients']
 
 def train(net, data_path, cid, strategy):
-    net.train(data=data_path, epochs=YOLO_CONFIG['epochs'], workers=0, seed=cid, batch=YOLO_CONFIG['batch_size'], project=strategy)
+    net.train(data=data_path, epochs=YOLO_CONFIG['epochs'], workers=0, seed=cid+6, batch=YOLO_CONFIG['batch_size'], project=strategy)
 
-def get_section_parameters(state_dict: OrderedDict) -> tuple[dict, dict, dict]:
+# Define get_section_parameters as a standalone function
+from typing import Tuple
+def get_section_parameters(state_dict: OrderedDict) -> Tuple[dict, dict, dict]:
     """Get parameters for each section of the model."""
     # Backbone parameters (early layers through conv layers)
+    # backbone corresponds to:
+    # (0): Conv
+    # (1): Conv
+    # (2): C3k2
+    # (3): Conv
+    # (4): C3k2
+    # (5): Conv
+    # (6): C3k2
+    # (7): Conv
+    # (8): C3k2
     backbone_weights = {
-        k: v for k, v in state_dict.items() 
-        if not k.startswith(('model.17', 'model.20', 'model.21', 'model.22', 'model.23'))
+        k: v for k, v in state_dict.items()
+        if not k.startswith(tuple(f'model.{i}' for i in range(9, 24)))
     }
-    
-    # Neck parameters (SPPF and FPN layers)
+
+    # Neck parameters
+    # The neck consists of the following layers (by index in the Sequential container):
+    # (9): SPPF
+    # (10): C2PSA
+    # (11): Upsample
+    # (12): Concat
+    # (13): C3k2
+    # (14): Upsample
+    # (15): Concat
+    # (16): C3k2
+    # (17): Conv
+    # (18): Concat
+    # (19): C3k2
+    # (20): Conv
+    # (21): Concat
+    # (22): C3k2
     neck_weights = {
-        k: v for k, v in state_dict.items() 
-        if k.startswith(('model.17', 'model.20', 'model.21', 'model.22'))
+        k: v for k, v in state_dict.items()
+        if k.startswith(tuple(f'model.{i}' for i in range(9, 23)))
     }
-    
+
     # Head parameters (detection head)
     head_weights = {
-        k: v for k, v in state_dict.items() 
+        k: v for k, v in state_dict.items()
         if k.startswith('model.23')
     }
-    
+
     return backbone_weights, neck_weights, head_weights
 
 class FlowerClient(fl.client.NumPyClient):
@@ -52,7 +79,38 @@ class FlowerClient(fl.client.NumPyClient):
         self.strategy_name=strategy_name
 
     def get_parameters(self):
-        return [val.cpu().numpy() for _, val in self.net.model.state_dict().items()]
+        """Get relevant model parameters based on the strategy."""
+        current_state_dict = self.net.model.state_dict()
+        # Use the imported function
+        backbone_weights, neck_weights, head_weights = get_section_parameters(current_state_dict)
+
+        # Define strategy groups (same as in set_parameters) - Corrected lists
+        backbone_strategies = [
+            'FedAvg', 'FedBackboneAvg', 'FedBackboneHeadAvg', 'FedBackboneNeckAvg',
+            'FedMedian', 'FedBackboneMedian', 'FedBackboneHeadMedian', 'FedBackboneNeckMedian'
+        ]
+        neck_strategies = [
+            'FedAvg', 'FedNeckAvg', 'FedNeckHeadAvg', 'FedBackboneNeckAvg',
+            'FedMedian', 'FedNeckMedian', 'FedNeckHeadMedian', 'FedBackboneNeckMedian'
+        ]
+        head_strategies = [
+            'FedAvg', 'FedHeadAvg', 'FedNeckHeadAvg', 'FedBackboneHeadAvg',
+            'FedMedian', 'FedHeadMedian', 'FedNeckHeadMedian', 'FedBackboneHeadMedian'
+        ]
+
+        # Determine which parts to send based on strategy
+        send_backbone = self.strategy_name in backbone_strategies
+        send_neck = self.strategy_name in neck_strategies
+        send_head = self.strategy_name in head_strategies
+
+        relevant_parameters = []
+        for k, v in current_state_dict.items():
+            if (send_backbone and k in backbone_weights) or \
+               (send_neck and k in neck_weights) or \
+               (send_head and k in head_weights):
+                relevant_parameters.append(v.cpu().numpy())
+        
+        return relevant_parameters
 
     def set_parameters(self, parameters):
         # Zip server parameters with model state_dict keys
