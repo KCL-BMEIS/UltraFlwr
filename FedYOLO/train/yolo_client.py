@@ -18,7 +18,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 NUM_CLIENTS = SERVER_CONFIG['max_num_clients']
 
 def train(net, data_path, cid, strategy):
-    net.train(data=data_path, epochs=YOLO_CONFIG['epochs'], workers=0, seed=cid+6, batch=YOLO_CONFIG['batch_size'], project=strategy)
+    net.train(data=data_path, epochs=YOLO_CONFIG['epochs'], workers=0, seed=cid, batch=YOLO_CONFIG['batch_size'], project=strategy)
 
 # Define get_section_parameters as a standalone function
 from typing import Tuple
@@ -113,14 +113,11 @@ class FlowerClient(fl.client.NumPyClient):
         return relevant_parameters
 
     def set_parameters(self, parameters):
-        # Zip server parameters with model state_dict keys
-        params_dict = zip(self.net.model.state_dict().keys(), parameters)
-        
         # Get current client model state and split into sections
         current_state_dict = self.net.model.state_dict()
         backbone_weights, neck_weights, head_weights = get_section_parameters(current_state_dict)
         
-        # Define strategy groups for backbone, neck, and head updates
+        # Define strategy groups
         backbone_strategies = [
             'FedAvg', 'FedBackboneAvg', 'FedBackboneHeadAvg', 'FedBackboneNeckAvg',
             'FedMedian', 'FedBackboneMedian', 'FedBackboneHeadMedian', 'FedBackboneNeckMedian'
@@ -134,21 +131,32 @@ class FlowerClient(fl.client.NumPyClient):
             'FedMedian', 'FedHeadMedian', 'FedNeckHeadMedian', 'FedBackboneHeadMedian'
         ]
         
-        # Determine which parts to update based on strategy
+        # Determine which parts to update
         update_backbone = self.strategy_name in backbone_strategies
         update_neck = self.strategy_name in neck_strategies
         update_head = self.strategy_name in head_strategies
         
-        # Prepare updated weights
-        updated_weights = {}
-        # Note params_dict is from server
-        for k, v in params_dict:
+        # Create the SAME key order that get_parameters() used
+        relevant_keys = []
+        for k in current_state_dict.keys():
             if (update_backbone and k in backbone_weights) or \
             (update_neck and k in neck_weights) or \
             (update_head and k in head_weights):
-                updated_weights[k] = torch.tensor(v)
+                relevant_keys.append(k)
+        
+        # Verify parameter count matches
+        if len(parameters) != len(relevant_keys):
+            print(f"ERROR: Expected {len(relevant_keys)} parameters, got {len(parameters)}")
+            return
+        
+        # NOW zip with the correct keys
+        params_dict = zip(relevant_keys, parameters)
+        
+        # Apply the parameters
+        updated_weights = {}
+        for k, v in params_dict:
+            updated_weights[k] = torch.tensor(v)
 
-        # Load updated parameters into the model
         updated_state_dict = OrderedDict(updated_weights)
         self.net.model.load_state_dict(updated_state_dict, strict=False)
 
