@@ -158,7 +158,7 @@ class FlowerClient(fl.client.NumPyClient):
             updated_weights[k] = torch.tensor(v)
 
         updated_state_dict = OrderedDict(updated_weights)
-        self.net.model.load_state_dict(updated_state_dict, strict=False)
+        self.net.model.load_state_dict(updated_state_dict, strict=True)
 
     def fit(self, parameters, config):
         if config["server_round"] != 1:
