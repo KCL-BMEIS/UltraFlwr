@@ -154,8 +154,9 @@ class FlowerClient(fl.client.NumPyClient):
         if config["server_round"] != 1:
             del self.net
             torch.cuda.empty_cache()
-            # get the path of the saved model weight
-            logs_path = f"{HOME}/logs/client_{self.cid}_log_{self.dataset_name}_{self.strategy_name}.txt"
+            logs_path = f"{HOME}/logs/{self.strategy_name}_{self.dataset_name}_{SPLITS_CONFIG['partition_method']}/client_{self.cid}_log.txt"
+
+
             weights_path = extract_results_path(logs_path)
             weights = f"{HOME}/{weights_path}/weights/best.pt"
             print(weights)
