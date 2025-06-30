@@ -67,19 +67,32 @@ class FlowerClient(fl.client.NumPyClient):
         send_neck = self.strategy_name in neck_strategies
         send_head = self.strategy_name in head_strategies
 
+        # Get all parameters in consistent order (same as set_parameters)
+        all_keys = sorted(current_state_dict.keys())
         relevant_parameters = []
-        for k, v in current_state_dict.items():
+        
+        for k in all_keys:
             if (send_backbone and k in backbone_weights) or \
                (send_neck and k in neck_weights) or \
                (send_head and k in head_weights):
-                relevant_parameters.append(v.cpu().numpy())
+                relevant_parameters.append(current_state_dict[k].cpu().numpy())
         
         return relevant_parameters
 
     def set_parameters(self, parameters):
         """Set relevant model parameters based on the strategy."""
         current_state_dict = self.net.model.state_dict()
-        # Use the imported function
+        
+        # For the first round, we expect the full model parameters to initialize all clients equally
+        if len(parameters) == len(current_state_dict):
+            print(f"Round 1: Initializing with full model ({len(parameters)} parameters)")
+            # Initialize with full model parameters
+            params_dict = zip(current_state_dict.keys(), parameters)
+            updated_weights = {k: torch.tensor(v) for k, v in params_dict}
+            self.net.model.load_state_dict(updated_weights, strict=True)
+            return
+        
+        # For subsequent rounds, handle partial parameter updates based on strategy
         backbone_weights, neck_weights, head_weights = get_section_parameters(current_state_dict)
 
         # Define strategy groups - Corrected lists
@@ -101,13 +114,17 @@ class FlowerClient(fl.client.NumPyClient):
         update_neck = self.strategy_name in neck_strategies
         update_head = self.strategy_name in head_strategies
 
-        # Identify the keys corresponding to the parameters received from the server
+        # Get relevant keys in consistent order (same as server and get_parameters)
         relevant_keys = []
-        for k in current_state_dict.keys():
-             if (update_backbone and k in backbone_weights) or \
-                (update_neck and k in neck_weights) or \
-                (update_head and k in head_weights):
-                 relevant_keys.append(k)
+        for k in sorted(current_state_dict.keys()):
+            if (update_backbone and k in backbone_weights) or \
+               (update_neck and k in neck_weights) or \
+               (update_head and k in head_weights):
+                relevant_keys.append(k)
+
+        print(f"Strategy: {self.strategy_name}")
+        print(f"Parameters received: {len(parameters)}")
+        print(f"Expected relevant parameters: {len(relevant_keys)}")
 
         # Ensure the number of parameters received matches the number of relevant keys
         if len(parameters) != len(relevant_keys):

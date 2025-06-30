@@ -16,8 +16,7 @@ from FedYOLO.train.strategies import (
     FedBackboneAvg, FedBackboneMedian,
     FedNeckHeadAvg, FedNeckHeadMedian,
     FedBackboneHeadAvg, FedBackboneHeadMedian,
-    FedBackboneNeckAvg, FedBackboneNeckMedian,
-    get_section_parameters
+    FedBackboneNeckAvg, FedBackboneNeckMedian
 )
 
 from FedYOLO.config import SERVER_CONFIG, YOLO_CONFIG, SPLITS_CONFIG, HOME
@@ -30,37 +29,15 @@ def fit_config(server_round: int) -> dict:
 
 
 def get_parameters(net: YOLO, strategy_name: str) -> list[np.ndarray]:
-    """Extract relevant model parameters from YOLO model based on the strategy."""
+    """Extract all model parameters from YOLO model for initial server parameters."""
     current_state_dict = net.model.state_dict()
-    backbone_weights, neck_weights, head_weights = get_section_parameters(current_state_dict)
-
-    # Define strategy groups (reuse logic similar to client/strategy)
-    backbone_strategies = [
-        'FedAvg', 'FedBackboneAvg', 'FedBackboneHeadAvg', 'FedBackboneNeckAvg',
-        'FedMedian', 'FedBackboneMedian', 'FedBackboneHeadMedian', 'FedBackboneNeckMedian'
-    ]
-    neck_strategies = [
-        'FedAvg', 'FedNeckAvg', 'FedNeckHeadAvg', 'FedBackboneNeckAvg',
-        'FedMedian', 'FedNeckMedian', 'FedNeckHeadMedian', 'FedBackboneNeckMedian'
-    ]
-    head_strategies = [
-        'FedAvg', 'FedHeadAvg', 'FedNeckHeadAvg', 'FedBackboneHeadAvg',
-        'FedMedian', 'FedHeadMedian', 'FedNeckHeadMedian', 'FedBackboneHeadMedian'
-    ]
-
-    # Determine which parts are relevant based on strategy
-    include_backbone = strategy_name in backbone_strategies
-    include_neck = strategy_name in neck_strategies
-    include_head = strategy_name in head_strategies
-
-    relevant_parameters = []
-    for k, v in current_state_dict.items():
-        if (include_backbone and k in backbone_weights) or \
-           (include_neck and k in neck_weights) or \
-           (include_head and k in head_weights):
-            relevant_parameters.append(v.cpu().numpy())
     
-    return relevant_parameters
+    # For initial parameters, return all model parameters regardless of strategy
+    all_parameters = []
+    for k, v in current_state_dict.items():
+        all_parameters.append(v.cpu().numpy())
+    
+    return all_parameters
 
 
 def create_yolo_yaml(dataset_name: str, num_classes: int, task: str) -> YOLO:

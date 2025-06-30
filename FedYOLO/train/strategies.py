@@ -4,7 +4,7 @@ from collections import OrderedDict
 from typing import Optional, Union, Tuple # Add Tuple
 
 import flwr as fl
-from flwr.common import parameters_to_ndarrays, FitRes, Parameters, Scalar
+from flwr.common import parameters_to_ndarrays, ndarrays_to_parameters, FitRes, Parameters, Scalar
 from flwr.server.client_proxy import ClientProxy
 from flwr.server.strategy import Strategy
 from flwr.server.client_manager import ClientManager
@@ -85,7 +85,7 @@ class BaseYOLOSaveStrategy:
         aggregated_ndarrays = parameters_to_ndarrays(aggregated_parameters)
 
         relevant_keys = []
-        for k in current_state_dict.keys():
+        for k in sorted(current_state_dict.keys()):  # Use sorted() for consistency with client
             if (self.update_backbone and k in backbone_weights) or \
                (self.update_neck and k in neck_weights) or \
                (self.update_head and k in head_weights):
@@ -119,6 +119,16 @@ class BaseYOLOSaveStrategy:
         if aggregated_parameters is not None:
             net = self.load_and_update_model(aggregated_parameters)
             save_model_checkpoint(server_round, model=net.model)
+            
+            # For strategies that update all parts (like FedAvg), send back the full model
+            # For partial strategies, send back only the relevant parts
+            if self.update_backbone and self.update_neck and self.update_head:
+                # Send full model parameters
+                full_parameters = [val.cpu().numpy() for _, val in net.model.state_dict().items()]
+                return ndarrays_to_parameters(full_parameters), aggregated_metrics
+            else:
+                # Send only relevant partial parameters (same as what was aggregated)
+                return aggregated_parameters, aggregated_metrics
 
         return aggregated_parameters, aggregated_metrics
 
@@ -210,3 +220,4 @@ class FedBackboneNeckMedian(BaseYOLOSaveStrategy, fl.server.strategy.FedMedian):
     update_backbone = True
     update_neck = True
     update_head = False
+    
