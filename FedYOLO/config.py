@@ -45,23 +45,23 @@ def generate_client_config(num_clients, dataset_path, client_tasks):
     }
 
 # Base Configuration
-BASE = "/home/yang/Downloads/upgrade_flower"
+BASE = "/nfs/home/yli/BIBM_2025"
 HOME = f"{BASE}/UltraFlwr"
 
 # --- Multi-client, multi-task configuration ---
 
 # List of detection, segmentation, and pose datasets
-DETECTION_DATASETS = ['surg_od']
-SEGMENTATION_DATASETS = ['Endonet_seg']
-POSE_DATASETS = ['pose'] 
-CLASSIFICATION_DATASETS = ['mnist']
+DETECTION_DATASETS = ['baseline']
+SEGMENTATION_DATASETS = []
+POSE_DATASETS = [] 
+CLASSIFICATION_DATASETS = []
 
 
 # --- Generalized approach: specify number of clients per dataset as a dictionary ---
-DETECTION_CLIENTS = {'surg_od': 0}         # dataset_name: num_clients
-SEGMENTATION_CLIENTS = {'Endonet_seg': 2} 
-POSE_CLIENTS = {'pose': 1} 
-CLASSIFICATION_CLIENTS = {'mnist': 0}
+DETECTION_CLIENTS = {'baseline': 2}         # dataset_name: num_clients
+SEGMENTATION_CLIENTS = {} 
+POSE_CLIENTS = {} 
+CLASSIFICATION_CLIENTS = {}
 
 
 client_specs = []
@@ -109,7 +109,7 @@ CLIENT_TASKS = [CLIENT_CONFIG[i]['task'] for i in range(NUM_CLIENTS)]
 CLIENT_RATIOS = [1/NUM_CLIENTS] * NUM_CLIENTS
 
 # For backward compatibility, set the first detection, segmentation, pose, and classification dataset names
-DATASET_NAME = DETECTION_DATASETS[0] if DETECTION_DATASETS else ''
+DATASET_NAME = 'baseline'
 DATASET_NAME_SEG = SEGMENTATION_DATASETS[0] if SEGMENTATION_DATASETS else ''
 DATASET_NAME_POSE = POSE_DATASETS[0] if POSE_DATASETS else ''
 DATASET_NAME_CLS = CLASSIFICATION_DATASETS[0] if CLASSIFICATION_DATASETS else ''
@@ -140,10 +140,11 @@ SERVER_CONFIG = {
     'sample_fraction': 1.0,
     'min_num_clients': NUM_CLIENTS,
     'max_num_clients': NUM_CLIENTS * 2,  # Adjusted based on number of clients
-    'strategy': 'FedBackboneMedian',
+    'strategy': 'FedBackboneNeckMedian',
 }
 
 YOLO_CONFIG = {
     'batch_size': 2,
     'epochs': 1,
+    'seed_offset': 3
 }

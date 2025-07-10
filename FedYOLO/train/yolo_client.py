@@ -18,7 +18,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 NUM_CLIENTS = SERVER_CONFIG['max_num_clients']
 
 def train(net, data_path, cid, strategy):
-    net.train(data=data_path, epochs=YOLO_CONFIG['epochs'], workers=0, seed=cid, 
+    net.train(data=data_path, epochs=YOLO_CONFIG['epochs'], workers=0, seed=cid+YOLO_CONFIG['seed_offset'], 
               batch=YOLO_CONFIG['batch_size'], project=strategy)
 
 class FlowerClient(fl.client.NumPyClient):
