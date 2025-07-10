@@ -85,7 +85,7 @@ class FlowerClient(fl.client.NumPyClient):
         
         # For the first round, we expect the full model parameters to initialize all clients equally
         if len(parameters) == len(current_state_dict):
-            print(f"Round 1: Initializing with full model ({len(parameters)} parameters)")
+            print(f"Round 1/FA: Initializing round with full model ({len(parameters)} parameters)")
             # Initialize with full model parameters
             params_dict = zip(current_state_dict.keys(), parameters)
             updated_weights = {k: torch.tensor(v) for k, v in params_dict}
