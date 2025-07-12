@@ -24,7 +24,6 @@ def train(net, data_path, cid, strategy):
 class FlowerClient(fl.client.NumPyClient):
     def __init__(self, cid, data_path, dataset_name, num_classes, strategy_name, task):
         # Initialize model config for this client
-        write_yolo_config(dataset_name, num_classes)
         yaml_path = f"{HOME}/FedYOLO/yolo_configs/yolo11n_{dataset_name}.yaml"
         # Load segmentation weights or detection config
         if task == "segment":
