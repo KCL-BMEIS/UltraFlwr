@@ -15,7 +15,7 @@ WORKDIR /nfs/home/$USER
 
 # Install dependencies
 RUN apt update && \
-    apt install -y lsof && \
+    apt install -y lsof jq && \
     apt clean && rm -rf /var/lib/apt/lists/*
 
 # Install Python packages

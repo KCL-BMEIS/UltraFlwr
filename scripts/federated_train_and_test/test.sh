@@ -12,6 +12,21 @@ cd UltraFlwr
 # Define the HOME directory for result storage
 HOME=$(pwd)
 
+# Create logs directory if it doesn't exist
+LOG_DIR="$HOME/logs/test_logs"
+mkdir -p "$LOG_DIR"
+
+# Generate timestamp for log files
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+MAIN_LOG="$LOG_DIR/test_run_${TIMESTAMP}.log"
+
+# Start logging
+exec > >(tee -a "$MAIN_LOG") 2>&1
+
+echo "Test run started at $(date)"
+echo "Logs will be saved to: $MAIN_LOG"
+echo "========================================"
+
 PYTHON_SCRIPT="FedYOLO/test/test.py"
 
 # Read CLIENT_CONFIG from Python file
@@ -35,7 +50,22 @@ sed -i "s|^BASE = .*|BASE = \"$PATH_CONTAINING_PROJECT\"|" "$CLIENT_CONFIG_FILE"
 # List of datasets and strategies (similar to benchmark.sh)
 # DATASET_NAME_LIST=("mnist")
 # STRATEGY_LIST=("FedAvg" "FedHeadAvg" "FedHeadMedian" "FedNeckAvg" "FedNeckMedian" "FedBackboneAvg" "FedBackboneMedian" "FedNeckHeadAvg" "FedNeckHeadMedian")
-STRATEGY_LIST=("FedBackboneMedian")
+STRATEGY_LIST=(
+    "FedAvg"
+    "FedHeadAvg"
+    "FedNeckAvg"
+    "FedBackboneAvg"
+    "FedNeckHeadAvg"
+    "FedBackboneHeadAvg"
+    "FedBackboneNeckAvg"
+    "FedMedian"
+    "FedHeadMedian"
+    "FedNeckMedian"
+    "FedBackboneMedian"
+    "FedNeckHeadMedian"
+    "FedBackboneHeadMedian"
+    "FedBackboneNeckMedian"
+)
 
 # Number of clients for client-dependent tests
 NUM_CLIENTS=$(python3 -c "from FedYOLO.config import NUM_CLIENTS; print(NUM_CLIENTS)")
@@ -111,8 +141,9 @@ for STRATEGY in "${STRATEGY_LIST[@]}"; do
 
         # Evaluate the client on its own data
         echo "Evaluating Client $CLIENT_ID on its own data"
-        python3 "$PYTHON_SCRIPT" --dataset_name "$CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --client_num "$CLIENT_ID" --scoring_style "client-client" --task "$CLIENT_TASK" --data_path "$CLIENT_DATASET"
-        TEST_SUMMARY+=("Client $CLIENT_ID evaluated on its own data with STRATEGY=$STRATEGY")
+        TEST_LOG="$LOG_DIR/client_${CLIENT_ID}_own_data_${STRATEGY}_${TIMESTAMP}.log"
+        python3 "$PYTHON_SCRIPT" --dataset_name "$CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --client_num "$CLIENT_ID" --scoring_style "client-client" --task "$CLIENT_TASK" --data_path "$CLIENT_DATASET" > "$TEST_LOG" 2>&1
+        TEST_SUMMARY+=("Client $CLIENT_ID evaluated on its own data with STRATEGY=$STRATEGY - Log: $TEST_LOG")
 
         if [[ "$ALL_TASKS_SAME" == true ]]; then
             # Evaluate the client on data from all other clients
@@ -120,9 +151,10 @@ for STRATEGY in "${STRATEGY_LIST[@]}"; do
                 if [[ "$CLIENT_ID" -ne "$OTHER_CLIENT_ID" ]]; then
                     OTHER_CLIENT_DATA=$(echo "$CLIENT_CONFIG" | jq ".\"$OTHER_CLIENT_ID\"")
                     OTHER_CLIENT_DATASET_NAME=$(echo "$OTHER_CLIENT_DATA" | jq -r '.dataset_name')
+                    OTHER_CLIENT_DATASET=$(echo "$OTHER_CLIENT_DATA" | jq -r '.data_path')
 
                     echo "Evaluating Client $CLIENT_ID on data from Client $OTHER_CLIENT_ID..."
-                    python3 "$PYTHON_SCRIPT" --dataset_name "$OTHER_CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --client_num "$CLIENT_ID" --scoring_style "client-client" --task "$CLIENT_TASK" --data_path "$CLIENT_DATASET"
+                    python3 "$PYTHON_SCRIPT" --dataset_name "$OTHER_CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --client_num "$CLIENT_ID" --scoring_style "client-client" --task "$CLIENT_TASK" --data_path "$OTHER_CLIENT_DATASET"
                     TEST_SUMMARY+=("Client $CLIENT_ID evaluated on data from Client $OTHER_CLIENT_ID with STRATEGY=$STRATEGY")
                 fi
             done
@@ -131,27 +163,32 @@ for STRATEGY in "${STRATEGY_LIST[@]}"; do
             echo "Evaluating Client $CLIENT_ID on data from the server..."
             python3 "$PYTHON_SCRIPT" --dataset_name "$CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --client_num "$CLIENT_ID" --scoring_style "client-server" --task "$CLIENT_TASK"
             TEST_SUMMARY+=("Client $CLIENT_ID evaluated on data from the server with STRATEGY=$STRATEGY")
-
-            if [[ "$IS_PARTIAL_AGGREGATION" == false ]]; then
-                # Evaluate the server model on data from the server
-                echo "Evaluating server model on data from the server..."
-                python3 "$PYTHON_SCRIPT" --dataset_name "$CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --scoring_style "server-server" --task "$CLIENT_TASK"
-                TEST_SUMMARY+=("Server model evaluated on data from the server with STRATEGY=$STRATEGY")
-
-                # Evaluate the server model on data from all clients
-                for ((OTHER_CLIENT_ID=0; OTHER_CLIENT_ID<NUM_CLIENTS; OTHER_CLIENT_ID++)); do
-                    if [[ "$CLIENT_ID" -ne "$OTHER_CLIENT_ID" ]]; then
-                        OTHER_CLIENT_DATA=$(echo "$CLIENT_CONFIG" | jq ".\"$OTHER_CLIENT_ID\"")
-                        OTHER_CLIENT_DATASET_NAME=$(echo "$OTHER_CLIENT_DATA" | jq -r '.dataset_name')
-
-                        echo "Evaluating server model on data from Client $OTHER_CLIENT_ID..."
-                        python3 "$PYTHON_SCRIPT" --dataset_name "$OTHER_CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --scoring_style "server-client" --task "$CLIENT_TASK"  --data_path "$CLIENT_DATASET"
-                        TEST_SUMMARY+=("Server model evaluated on data from Client $OTHER_CLIENT_ID with STRATEGY=$STRATEGY")
-                    fi
-                done
-            fi
         fi
     done
+
+    # Server model evaluation (only for full aggregation strategies)
+    if [[ "$IS_PARTIAL_AGGREGATION" == false && "$ALL_TASKS_SAME" == true ]]; then
+        # Use the first client's dataset info for server evaluation
+        FIRST_CLIENT_DATA=$(echo "$CLIENT_CONFIG" | jq ".\"0\"")
+        FIRST_CLIENT_DATASET_NAME=$(echo "$FIRST_CLIENT_DATA" | jq -r '.dataset_name')
+        FIRST_CLIENT_TASK=$(echo "$FIRST_CLIENT_DATA" | jq -r '.task')
+
+        # Evaluate the server model on data from the server
+        echo "Evaluating server model on data from the server..."
+        python3 "$PYTHON_SCRIPT" --dataset_name "$FIRST_CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --scoring_style "server-server" --task "$FIRST_CLIENT_TASK"
+        TEST_SUMMARY+=("Server model evaluated on data from the server with STRATEGY=$STRATEGY")
+
+        # Evaluate the server model on data from all clients
+        for ((CLIENT_ID=0; CLIENT_ID<NUM_CLIENTS; CLIENT_ID++)); do
+            CLIENT_DATA=$(echo "$CLIENT_CONFIG" | jq ".\"$CLIENT_ID\"")
+            CLIENT_DATASET_NAME=$(echo "$CLIENT_DATA" | jq -r '.dataset_name')
+            CLIENT_DATASET=$(echo "$CLIENT_DATA" | jq -r '.data_path')
+
+            echo "Evaluating server model on data from Client $CLIENT_ID..."
+            python3 "$PYTHON_SCRIPT" --dataset_name "$CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --scoring_style "server-client" --task "$FIRST_CLIENT_TASK" --data_path "$CLIENT_DATASET"
+            TEST_SUMMARY+=("Server model evaluated on data from Client $CLIENT_ID with STRATEGY=$STRATEGY")
+        done
+    fi
 done
 
 # Print the summary of all tests performed

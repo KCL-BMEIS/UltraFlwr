@@ -50,14 +50,7 @@ HOME = f"{BASE}/UltraFlwr"
 
 # --- Multi-client, multi-task configuration ---
 
-# List of detection, segmentation, and pose datasets
-DETECTION_DATASETS = ['baseline']
-SEGMENTATION_DATASETS = []
-POSE_DATASETS = [] 
-CLASSIFICATION_DATASETS = []
-
-
-# --- Generalized approach: specify number of clients per dataset as a dictionary ---
+# Specify number of clients per dataset as a dictionary
 DETECTION_CLIENTS = {'baseline': 2}         # dataset_name: num_clients
 SEGMENTATION_CLIENTS = {} 
 POSE_CLIENTS = {} 
@@ -110,9 +103,9 @@ CLIENT_RATIOS = [1/NUM_CLIENTS] * NUM_CLIENTS
 
 # For backward compatibility, set the first detection, segmentation, pose, and classification dataset names
 DATASET_NAME = 'baseline'
-DATASET_NAME_SEG = SEGMENTATION_DATASETS[0] if SEGMENTATION_DATASETS else ''
-DATASET_NAME_POSE = POSE_DATASETS[0] if POSE_DATASETS else ''
-DATASET_NAME_CLS = CLASSIFICATION_DATASETS[0] if CLASSIFICATION_DATASETS else ''
+DATASET_NAME_SEG = list(SEGMENTATION_CLIENTS.keys())[0] if SEGMENTATION_CLIENTS else ''
+DATASET_NAME_POSE = list(POSE_CLIENTS.keys())[0] if POSE_CLIENTS else ''
+DATASET_NAME_CLS = list(CLASSIFICATION_CLIENTS.keys())[0] if CLASSIFICATION_CLIENTS else ''
 DATASET_PATH = f'{HOME}/datasets/{DATASET_NAME}'
 DATASET_PATH_SEG = f'{HOME}/datasets/{DATASET_NAME_SEG}'
 DATASET_PATH_POSE = f'{HOME}/datasets/{DATASET_NAME_POSE}'

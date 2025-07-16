@@ -116,8 +116,10 @@ def get_classwise_results_table(results, task):
 def client_client_metrics(client_number, dataset_name, strategy_name, task, data_path):
 
     logs_path = f"{HOME}/logs/client_{client_number}_log_{dataset_name}_{strategy_name}.txt"
+    print(f"Loading logs from: {logs_path}")
     weights_path = extract_results_path(logs_path)
     weights = f"{HOME}/{weights_path}/weights/best.pt"
+    print(f"Loading weights from: {weights}")
     model = YOLO(weights)
     results = model.val(data=data_path, split="test", verbose=True)
     table = get_classwise_results_table(results, task)
@@ -126,8 +128,10 @@ def client_client_metrics(client_number, dataset_name, strategy_name, task, data
 def client_server_metrics(client_number, dataset_name, strategy_name, task):
 
     logs_path = f"{HOME}/logs/client_{client_number}_log_{dataset_name}_{strategy_name}.txt"
+    print(f"Loading logs from: {logs_path}")
     weights_path = extract_results_path(logs_path)
     weights = f"{HOME}/{weights_path}/weights/best.pt"
+    print(f"Loading weights from: {weights}")
     model = YOLO(weights)
     results = model.val(data=f'{HOME}/datasets/{dataset_name}/data.yaml', split="test", verbose=True)
     table = get_classwise_results_table(results, task)
@@ -136,6 +140,7 @@ def client_server_metrics(client_number, dataset_name, strategy_name, task):
 def server_client_metrics(client_number, dataset_name, strategy_name, num_rounds, task, data_path):
 
     weights_path = f"{HOME}/weights/model_round_{num_rounds}_{dataset_name}_Strategy_{strategy_name}.pt"
+    print(f"Loading server model weights from: {weights_path}")
     server_model = YOLO(weights_path)
     normal_model = YOLO()
 
@@ -151,6 +156,7 @@ def server_client_metrics(client_number, dataset_name, strategy_name, num_rounds
 def server_server_metrics(dataset_name, strategy_name, num_rounds, task):
 
     weights_path = f"{HOME}/weights/model_round_{num_rounds}_{dataset_name}_Strategy_{strategy_name}.pt"
+    print(f"Loading server model weights from: {weights_path}")
     server_model = YOLO(weights_path)
     normal_model = YOLO()
 
