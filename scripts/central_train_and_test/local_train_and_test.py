@@ -7,6 +7,6 @@ args = parser.parse_args()
 
 model = YOLO()
 
-results = model.train(data=args.data, batch=8, epochs=400)
+results = model.train(data=args.data, batch=8, epochs=400, project="glabal_local_train")
 
 metrics = model.val(data=args.data, split="test")
