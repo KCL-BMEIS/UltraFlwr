@@ -4,6 +4,7 @@ from extract_final_save_from_client import extract_results_path
 from FedYOLO.config import HOME, SERVER_CONFIG
 
 import pandas as pd
+import os
 
 import argparse
 parser = argparse.ArgumentParser()
@@ -13,6 +14,7 @@ parser.add_argument('--client_num', type=int, default=1)
 parser.add_argument('--scoring_style', type=str, default="client-client")
 parser.add_argument('--data_path', type=str)
 parser.add_argument('--task', type=str, default="detect", choices=["detect", "segment", "pose", "classify"], help="Task type: 'detect' for detection, 'segment' for segmentation, 'pose' for pose estimation, 'classify' for classification")
+parser.add_argument('--data_source_client', type=int, help="Client ID whose data is being used for evaluation (for cross-client testing)")
 
 args = parser.parse_args()
 
@@ -23,6 +25,59 @@ scoring_style = args.scoring_style
 num_rounds = SERVER_CONFIG['rounds']
 data_path = args.data_path
 task = args.task
+data_source_client = args.data_source_client
+
+
+def safe_save_csv(table, filename, description=""):
+    """Safely save CSV file with error handling and fallback location"""
+    try:
+        # Ensure results directory exists
+        results_dir = os.path.dirname(filename)
+        os.makedirs(results_dir, exist_ok=True)
+        
+        # Try to save the CSV
+        table.to_csv(filename, index=True, index_label='class')
+        print(f"✓ Saved {description}: {filename}")
+        
+        # Verify the file was actually created and get its size
+        if os.path.exists(filename):
+            file_size = os.path.getsize(filename)
+            print(f"  File verified: {filename} ({file_size} bytes)")
+        else:
+            print(f"  ⚠ Warning: File not found after save: {filename}")
+        
+    except PermissionError:
+        # Fallback to /tmp if permission denied
+        fallback_filename = filename.replace(f"{HOME}/results", "/tmp/results")
+        fallback_dir = os.path.dirname(fallback_filename)
+        os.makedirs(fallback_dir, exist_ok=True)
+        table.to_csv(fallback_filename, index=True, index_label='class')
+        print(f"⚠ Permission denied for {filename}")
+        print(f"✓ Saved {description} to fallback location: {fallback_filename}")
+        
+    except Exception as e:
+        print(f"✗ Error saving {description} to {filename}: {str(e)}")
+
+
+def list_csv_files():
+    """List all CSV files in the results directory for debugging"""
+    results_dir = f"{HOME}/results"
+    print(f"\n=== CSV files in {results_dir} ===")
+    try:
+        if os.path.exists(results_dir):
+            csv_files = [f for f in os.listdir(results_dir) if f.endswith('.csv')]
+            if csv_files:
+                for csv_file in sorted(csv_files):
+                    file_path = os.path.join(results_dir, csv_file)
+                    file_size = os.path.getsize(file_path)
+                    print(f"  {csv_file} ({file_size} bytes)")
+            else:
+                print("  No CSV files found")
+        else:
+            print(f"  Directory {results_dir} does not exist")
+    except Exception as e:
+        print(f"  Error listing files: {str(e)}")
+    print("=" * 50)
 
 
 def get_classwise_results_table(results, task):
@@ -113,7 +168,7 @@ def get_classwise_results_table(results, task):
     return table
 
 
-def client_client_metrics(client_number, dataset_name, strategy_name, task, data_path):
+def client_client_metrics(client_number, dataset_name, strategy_name, task, data_path, data_source_client=None):
 
     logs_path = f"{HOME}/logs/client_{client_number}_log_{dataset_name}_{strategy_name}.txt"
     print(f"Loading logs from: {logs_path}")
@@ -123,7 +178,17 @@ def client_client_metrics(client_number, dataset_name, strategy_name, task, data
     model = YOLO(weights)
     results = model.val(data=data_path, split="test", verbose=True)
     table = get_classwise_results_table(results, task)
-    table.to_csv(f"{HOME}/results/client_{client_number}_results_{dataset_name}_{strategy_name}.csv", index=True, index_label='class')
+    
+    # Create filename that distinguishes between model client and data source client
+    if data_source_client is not None:
+        filename = f"{HOME}/results/client_{client_number}_on_client_{data_source_client}_data_results_{dataset_name}_{strategy_name}.csv"
+        description = f"Client {client_number} model on Client {data_source_client} data"
+    else:
+        filename = f"{HOME}/results/client_{client_number}_results_{dataset_name}_{strategy_name}.csv"
+        description = f"Client {client_number} model on own data"
+    
+    safe_save_csv(table, filename, description)
+    list_csv_files()
 
 def client_server_metrics(client_number, dataset_name, strategy_name, task):
 
@@ -135,7 +200,10 @@ def client_server_metrics(client_number, dataset_name, strategy_name, task):
     model = YOLO(weights)
     results = model.val(data=f'{HOME}/datasets/{dataset_name}/data.yaml', split="test", verbose=True)
     table = get_classwise_results_table(results, task)
-    table.to_csv(f"{HOME}/results/client_{client_number}_results_{dataset_name}_{strategy_name}_server.csv", index=True, index_label='class')
+    filename = f"{HOME}/results/client_{client_number}_results_{dataset_name}_{strategy_name}_server.csv"
+    description = f"Client {client_number} model on server data"
+    safe_save_csv(table, filename, description)
+    list_csv_files()
 
 def server_client_metrics(client_number, dataset_name, strategy_name, num_rounds, task, data_path):
 
@@ -151,7 +219,10 @@ def server_client_metrics(client_number, dataset_name, strategy_name, num_rounds
     
     results = server_model.val(data=data_path, split="test", verbose=True)
     table = get_classwise_results_table(results, task)
-    table.to_csv(f"{HOME}/results/server_client_{client_number}_results_{dataset_name}_{strategy_name}.csv", index=True, index_label='class')
+    filename = f"{HOME}/results/server_on_client_{client_number}_data_results_{dataset_name}_{strategy_name}.csv"
+    description = f"Server model on Client {client_number} data"
+    safe_save_csv(table, filename, description)
+    list_csv_files()
 
 def server_server_metrics(dataset_name, strategy_name, num_rounds, task):
 
@@ -167,10 +238,13 @@ def server_server_metrics(dataset_name, strategy_name, num_rounds, task):
     
     results = server_model.val(data=f'{HOME}/datasets/{dataset_name}/data.yaml', split="test", verbose=True)
     table = get_classwise_results_table(results, task)
-    table.to_csv(f"{HOME}/results/server_results_{dataset_name}_{strategy_name}.csv", index=True, index_label='class')
+    filename = f"{HOME}/results/server_results_{dataset_name}_{strategy_name}.csv"
+    description = f"Server model on server data"
+    safe_save_csv(table, filename, description)
+    list_csv_files()
 
 if scoring_style == "client-client":
-    client_metrics_table = client_client_metrics(client_num, dataset_name, strategy_name, task, data_path)
+    client_metrics_table = client_client_metrics(client_num, dataset_name, strategy_name, task, data_path, data_source_client)
 elif scoring_style == "client-server":
     client_metrics_table = client_server_metrics(client_num, dataset_name, strategy_name, task)
 elif scoring_style == "server-client":

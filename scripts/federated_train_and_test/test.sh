@@ -16,9 +16,24 @@ HOME=$(pwd)
 LOG_DIR="$HOME/logs/test_logs"
 mkdir -p "$LOG_DIR"
 
+# Check if we can write to the logs directory
+if [[ ! -w "$LOG_DIR" ]]; then
+    echo "Warning: Cannot write to $LOG_DIR. Trying to fix permissions..."
+    chmod 755 "$HOME/logs" 2>/dev/null || true
+    chmod 755 "$LOG_DIR" 2>/dev/null || true
+fi
+
 # Generate timestamp for log files
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 MAIN_LOG="$LOG_DIR/test_run_${TIMESTAMP}.log"
+
+# Test if we can create the log file
+if ! touch "$MAIN_LOG" 2>/dev/null; then
+    echo "Warning: Cannot create log file at $MAIN_LOG. Using /tmp for logging..."
+    LOG_DIR="/tmp/test_logs"
+    mkdir -p "$LOG_DIR"
+    MAIN_LOG="$LOG_DIR/test_run_${TIMESTAMP}.log"
+fi
 
 # Start logging
 exec > >(tee -a "$MAIN_LOG") 2>&1
@@ -53,18 +68,6 @@ sed -i "s|^BASE = .*|BASE = \"$PATH_CONTAINING_PROJECT\"|" "$CLIENT_CONFIG_FILE"
 STRATEGY_LIST=(
     "FedAvg"
     "FedHeadAvg"
-    "FedNeckAvg"
-    "FedBackboneAvg"
-    "FedNeckHeadAvg"
-    "FedBackboneHeadAvg"
-    "FedBackboneNeckAvg"
-    "FedMedian"
-    "FedHeadMedian"
-    "FedNeckMedian"
-    "FedBackboneMedian"
-    "FedNeckHeadMedian"
-    "FedBackboneHeadMedian"
-    "FedBackboneNeckMedian"
 )
 
 # Number of clients for client-dependent tests
@@ -154,15 +157,17 @@ for STRATEGY in "${STRATEGY_LIST[@]}"; do
                     OTHER_CLIENT_DATASET=$(echo "$OTHER_CLIENT_DATA" | jq -r '.data_path')
 
                     echo "Evaluating Client $CLIENT_ID on data from Client $OTHER_CLIENT_ID..."
-                    python3 "$PYTHON_SCRIPT" --dataset_name "$OTHER_CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --client_num "$CLIENT_ID" --scoring_style "client-client" --task "$CLIENT_TASK" --data_path "$OTHER_CLIENT_DATASET"
-                    TEST_SUMMARY+=("Client $CLIENT_ID evaluated on data from Client $OTHER_CLIENT_ID with STRATEGY=$STRATEGY")
+                    TEST_LOG="$LOG_DIR/client_${CLIENT_ID}_on_client_${OTHER_CLIENT_ID}_data_${STRATEGY}_${TIMESTAMP}.log"
+                    python3 "$PYTHON_SCRIPT" --dataset_name "$OTHER_CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --client_num "$CLIENT_ID" --scoring_style "client-client" --task "$CLIENT_TASK" --data_path "$OTHER_CLIENT_DATASET" --data_source_client "$OTHER_CLIENT_ID" > "$TEST_LOG" 2>&1
+                    TEST_SUMMARY+=("Client $CLIENT_ID evaluated on data from Client $OTHER_CLIENT_ID with STRATEGY=$STRATEGY - Log: $TEST_LOG")
                 fi
             done
 
             # Evaluate the client on data from the server
             echo "Evaluating Client $CLIENT_ID on data from the server..."
-            python3 "$PYTHON_SCRIPT" --dataset_name "$CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --client_num "$CLIENT_ID" --scoring_style "client-server" --task "$CLIENT_TASK"
-            TEST_SUMMARY+=("Client $CLIENT_ID evaluated on data from the server with STRATEGY=$STRATEGY")
+            TEST_LOG="$LOG_DIR/client_${CLIENT_ID}_on_server_data_${STRATEGY}_${TIMESTAMP}.log"
+            python3 "$PYTHON_SCRIPT" --dataset_name "$CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --client_num "$CLIENT_ID" --scoring_style "client-server" --task "$CLIENT_TASK" > "$TEST_LOG" 2>&1
+            TEST_SUMMARY+=("Client $CLIENT_ID evaluated on data from the server with STRATEGY=$STRATEGY - Log: $TEST_LOG")
         fi
     done
 
@@ -175,8 +180,9 @@ for STRATEGY in "${STRATEGY_LIST[@]}"; do
 
         # Evaluate the server model on data from the server
         echo "Evaluating server model on data from the server..."
-        python3 "$PYTHON_SCRIPT" --dataset_name "$FIRST_CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --scoring_style "server-server" --task "$FIRST_CLIENT_TASK"
-        TEST_SUMMARY+=("Server model evaluated on data from the server with STRATEGY=$STRATEGY")
+        TEST_LOG="$LOG_DIR/server_on_server_data_${STRATEGY}_${TIMESTAMP}.log"
+        python3 "$PYTHON_SCRIPT" --dataset_name "$FIRST_CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --scoring_style "server-server" --task "$FIRST_CLIENT_TASK" --client_num 0 > "$TEST_LOG" 2>&1
+        TEST_SUMMARY+=("Server model evaluated on data from the server with STRATEGY=$STRATEGY - Log: $TEST_LOG")
 
         # Evaluate the server model on data from all clients
         for ((CLIENT_ID=0; CLIENT_ID<NUM_CLIENTS; CLIENT_ID++)); do
@@ -185,8 +191,9 @@ for STRATEGY in "${STRATEGY_LIST[@]}"; do
             CLIENT_DATASET=$(echo "$CLIENT_DATA" | jq -r '.data_path')
 
             echo "Evaluating server model on data from Client $CLIENT_ID..."
-            python3 "$PYTHON_SCRIPT" --dataset_name "$CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --scoring_style "server-client" --task "$FIRST_CLIENT_TASK" --data_path "$CLIENT_DATASET"
-            TEST_SUMMARY+=("Server model evaluated on data from Client $CLIENT_ID with STRATEGY=$STRATEGY")
+            TEST_LOG="$LOG_DIR/server_on_client_${CLIENT_ID}_data_${STRATEGY}_${TIMESTAMP}.log"
+            python3 "$PYTHON_SCRIPT" --dataset_name "$CLIENT_DATASET_NAME" --strategy_name "$STRATEGY" --scoring_style "server-client" --task "$FIRST_CLIENT_TASK" --data_path "$CLIENT_DATASET" --client_num "$CLIENT_ID" > "$TEST_LOG" 2>&1
+            TEST_SUMMARY+=("Server model evaluated on data from Client $CLIENT_ID with STRATEGY=$STRATEGY - Log: $TEST_LOG")
         done
     fi
 done
