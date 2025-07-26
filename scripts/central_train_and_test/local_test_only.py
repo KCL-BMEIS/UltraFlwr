@@ -8,4 +8,4 @@ args = parser.parse_args()
 
 model = YOLO(args.model)
 
-metrics = model.val(data=args.data, split="test")
+metrics = model.val(data=args.data, split="test", project="local_test")
