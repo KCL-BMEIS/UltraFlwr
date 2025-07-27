@@ -1,7 +1,7 @@
 # UltraFlwr: Federated Object Detection 
 UltraFlwr provides random and equally sized YOLO compatible data partitioning, federated training, and flexible testing capabilities. It integrates [Ultralytics](https://github.com/Ultralytics/Ultralytics) YOLO off-the-shelf within the [Flower](https://github.com/adap/flower) framework.
 
-*Poster Acceptance - MICCAI-AMAI'25*
+*Poster Acceptance - MICCAI-AMAI'25* [[ArXiv Link](https://arxiv.org/abs/2503.15161)]
 
 --------
 
