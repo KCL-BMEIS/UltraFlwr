@@ -1,15 +1,11 @@
-# Ignore all datasets except baseline
-datasets/*
-!datasets/baseline
-
-# Ignore everything in runs, logs, weights and results folder
+# Ignore old output directories (deprecated in favor of experiments/)
 runs/*
 logs/*
 weights/*
 results/*
-!logs/.gitkeep
-!weights/.gitkeep
-!results/.gitkeep
+
+# Ignore new experiments directory
+experiments/*
 
 # Ignore any folder called runs anywhere in the tree
 **/runs/
@@ -18,11 +14,32 @@ results/*
 **/__pycache__/
 *.pyc
 
-# Ignore all .cache files
+# Ignore all .cache files and build artifacts
 *.cache
-
 *.pt
 paper.md
+
+# Ignore downloaded YOLO pretrained weights in root
+/yolo*.pt
+
+# Ignore environment and package directories
 /dec_3_flower_env
 /FedYOLO.egg-info
-ultraflwr
+/fedyolo.egg-info
+*.egg-info/
+.rustup/
+.local/
+
+# Ignore config directories and flwr app data
+.config/
+.flwr/
+
+# Ignore test and coverage artifacts
+.tox/
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Ignore build artifacts
+dist/
+build/

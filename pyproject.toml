@@ -1,0 +1,151 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fedyolo"
+version = "1.0.0"
+description = "Federated YOLO Training with Flower"
+license = "AGPL-3.0"
+requires-python = ">=3.10,<3.14"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "flwr>=1.20.0,<2.0.0",
+    "ultralytics==8.3.100",
+    "prettytable==3.16.0",
+    "lightly>=1.5.0"
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.10.0"
+]
+dev = [
+    "pyright>=1.1.0",
+    "basedpyright>=1.21.0",
+    "tox>=4.0.0",
+    "pre-commit>=3.0.0"
+]
+
+[tool.setuptools.packages.find]
+include = ["fedyolo*"]
+exclude = ["assets*", "weights*", "datasets*", "experiments*"]
+
+[project.scripts]
+fedyolo-train = "fedyolo.cli.train:main"
+fedyolo-train-ssl = "fedyolo.cli.train_ssl:main"
+fedyolo-test = "fedyolo.cli.test:main"
+fedyolo-partition = "fedyolo.cli.partition:main"
+
+[tool.flwr.app]
+publisher = "yang"
+
+[tool.flwr.app.components]
+serverapp = "fedyolo.train.server:app"
+clientapp = "fedyolo.train.dynamic_client:app"
+
+[tool.flwr.federations.local-deployment]
+address = "127.0.0.1:9093"
+insecure = true
+
+[tool.pyright]
+typeCheckingMode = "standard"
+pythonVersion = "3.12"
+pythonPlatform = "Linux"
+include = ["fedyolo", "tests"]
+exclude = ["assets", "weights", "datasets", "experiments"]
+
+# Import and module resolution
+reportMissingImports = false
+reportMissingModuleSource = false
+reportMissingTypeStubs = false
+reportImportCycles = false
+
+# Type checking strictness
+reportOptionalMemberAccess = true
+reportOptionalOperand = true
+reportOptionalSubscript = true
+reportOptionalCall = true
+reportOptionalIterable = true
+reportOptionalContextManager = true
+
+# Variable and function annotations
+reportUntypedFunctionDecorator = false
+reportUntypedClassDecorator = false
+reportUntypedBaseClass = false
+reportUntypedNamedTuple = false
+
+# Type inference
+reportUnknownParameterType = false
+reportUnknownArgumentType = false
+reportUnknownLambdaType = false
+reportUnknownVariableType = false
+reportUnknownMemberType = false
+
+# General type issues
+reportGeneralTypeIssues = true
+reportPropertyTypeMismatch = true
+reportFunctionMemberAccess = true
+reportIncompatibleMethodOverride = true
+reportIncompatibleVariableOverride = true
+reportInconsistentConstructor = true
+
+# Usage and style
+reportPrivateUsage = false
+reportConstantRedefinition = true
+reportDeprecated = true
+reportDuplicateImport = true
+reportUnusedImport = false
+reportUnusedClass = false
+reportUnusedFunction = false
+reportUnusedVariable = false
+reportUnnecessaryIsInstance = false
+reportUnnecessaryCast = false
+reportUnnecessaryComparison = false
+
+# Best practices
+reportSelfClsParameterName = true
+reportImplicitStringConcatenation = false
+reportInvalidStubStatement = true
+reportIncompleteStub = true
+reportUnsupportedDunderAll = true
+reportUnusedCoroutine = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --strict-markers --tb=short --cov=fedyolo --cov-report=term-missing --cov-report=html"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests"
+]
+
+[tool.coverage.run]
+source = ["fedyolo"]
+omit = [
+    "*/tests/*",
+    "*/data/converters/*",
+    "*/__init__.py"
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod"
+]

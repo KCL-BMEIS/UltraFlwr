@@ -2,12 +2,12 @@
 
 ### Python venv
 
-Check `FedYOLO/config.py` to see the default configurations 
+Check `FedYOLO/config.py` to see the default configurations
 
 1. Make a custom environment: `python -m venv ultravenv`
 2. Activate the custom environment: `source ultravenv/bin/activate`
 3. Clone the repository
-4. `cd` into the repository: `cd UltraFlwr`   
+4. `cd` into the repository: `cd UltraFlwr`
 5. pip install the requirements: `pip install -e .`
 
 ### Prepare Datasets
@@ -19,7 +19,7 @@ Check `FedYOLO/config.py` to see the default configurations
 10. Create a directory for the client specific datasets: `mkdir partitions`
 11. Create the partitions
     - Go to the base of the clone: `cd ../../`
-    - Create the splits: `python FedYOLO/data_partitioner/fed_split.py` 
+    - Create the splits: `python FedYOLO/data_partitioner/fed_split.py`
       - To choose the dataset, change the `DATASET_NAME` parameter in the `FedYOLO/config.py` file
 
 
@@ -31,6 +31,7 @@ Follow the style of roboflow downloads as mentioned in above steps.
 
 ### Training
 
-12. For one-off: `./scripts/run.sh`
-    - For multiple Runs, reference: `bash scripts/federated_train_and_test/benchmark.sh`
-    - For normal YOLO training on entire server dataset and client data partitions: `bash scripts/central_train_and_test/run_local_train_and_test.sh`
+12. For federated training: `fedyolo-train`
+    - For normal YOLO training on entire server dataset and client data partitions: `bash tools/centralized/run_local_train_and_test.sh`
+
+### Testing

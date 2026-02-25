@@ -1,0 +1,13 @@
+names:
+- fire
+- smoke
+nc: 2
+roboflow:
+  license: CC BY 4.0
+  project: fire-and-smoke-segmentation
+  url: https://universe.roboflow.com/roboflow-universe-projects/fire-and-smoke-segmentation/dataset/6
+  version: 6
+  workspace: roboflow-universe-projects
+test: ./test/images
+train: ./train/images
+val: ./valid/images

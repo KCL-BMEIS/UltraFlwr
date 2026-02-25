@@ -1,0 +1,7 @@
+path: /tmp/test_pose_dataset
+train: images/train
+val: images/val
+
+names:
+  0: person
+  1: bicycle

@@ -1,23 +1,37 @@
-# UltraFlwr: Federated Object Detection 
-UltraFlwr provides random and equally sized YOLO compatible data partitioning, federated training, and flexible testing capabilities. It integrates [Ultralytics](https://github.com/Ultralytics/Ultralytics) YOLO off-the-shelf within the [Flower](https://github.com/adap/flower) framework.
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![ty](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ty/main/assets/badge/v0.json)](https://github.com/astral-sh/ty)
+[![Checked with pyright](https://microsoft.github.io/pyright/img/pyright_badge.svg)](https://microsoft.github.io/pyright/)
+![python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue?style=flat-square&logo=python&logoColor=white)
 
-*Poster Acceptance - MICCAI-AMAI'25* [[ArXiv Link](https://arxiv.org/abs/2503.15161)]
+# UltraFlwr: Mixed Supervision Federated Multi-Task Learning
 
---------
+Official repository for federated multi-task learning with YOLO, featuring integrated self-supervised learning (SSL) for pretraining without labels.
 
-Inspiration from existing issues:
+UltraFlwr provides random and equally sized YOLO compatible data partitioning, federated training, and flexible testing capabilities across multiple vision tasks (detection, segmentation, pose estimation, classification). It integrates [Ultralytics](https://github.com/Ultralytics/Ultralytics) YOLO off-the-shelf within the [Flower](https://github.com/adap/flower) framework.
 
-1. Exact Ask in Ultralytics Library | [Issue](https://github.com/orgs/Ultralytics/discussions/9440)
-2. Problem of loading the YOLO state | dict [Issue](https://github.com/Ultralytics/Ultralytics/issues/8804) 
-3. Need to easily integrate flower strategies with Ultralytics | [Issue](https://github.com/Ultralytics/Ultralytics/issues/14535) 
-4. Request from mmlab support in flower indicates a want from the community to be able to do federated object detection | [Issue](https://github.com/adap/flower/issues/4521)
+For more details on the motivation behind this project, see [docs/motivation.md](docs/motivation.md).
 
-Inspiration from actual need:
+## Quick Start
 
-1. Ultralytics allows the easy change of final heads (during inference) for multiple tasks.
-2. The Ultralytics style datasets are also well supported for easy off-the-shelf testing (and coco benchmarking).
-3. Allow flower strategies become smoothly integrated with Ultralytics' YOLO.
-4. Create detection specifc partial aggregation strategies, such as *YOLO-PA*.
+```bash
+# Install
+uv pip install -e . # or just pip install -e .
+
+# Partition datasets (one-time setup)
+fedyolo-partition
+
+# Phase 1: Federated SSL pretraining
+fedyolo-train-ssl
+
+# Phase 2: Supervised training (automatically uses SSL-pretrained weights)
+fedyolo-train
+
+# Run evaluation
+fedyolo-test
+```
+
+See below for detailed usage guides and advanced options.
 
 ## Benchmarks
 
@@ -30,40 +44,45 @@ We provide usage guides using [pills dataset](https://universe.roboflow.com/robo
 1. [Single machine simulation using Python virtual environment](docs/local_venv.md)
 2. [Single machine simulation using Docker](docs/local_docker.md)
 
-A deployment demo video is shown below, click to watch it!
-
-[![Watch the video](https://img.youtube.com/vi/raHjqcyYcBs/0.jpg)](https://www.youtube.com/watch?v=raHjqcyYcBs)
-
 ## Usage (Testing)
 
-For testing and getting client-wise global and local scores: `./FedYOLO/test/test.sh`
-- This automatically prints out tables in Ultralytics style.
+For testing and getting client-wise global and local scores: `fedyolo-test`
+- This automatically prints out tables in Ultralytics style and tests all clients with all scoring styles.
 
-To collect tables (suitable for latex) for all scores across all global and local data and models: `python /FedYOLO/test/master_table.py`
+## Federated Self-Supervised Learning (SSL)
 
-## Baseline Tasks
-- [x] Proper Federated Training using off-the-shelf Flower strategies.
-- [x] Inference Code for Local and Global datasets using client models.
-- [x] Inference Code for Local and Global datasets using server model.
-- [x] Fast Prototyping through simple bash script launch and logging.
-- [x] Propose new custom strategy in the Flwr framework. Our proposal: YOLO-PA
-- [x] Dynamically adapt entire code base to any number of clients and not rely on manually changing code base.
+UltraFlwr now includes integrated federated self-supervised learning (SSL) using the [Lightly](https://github.com/lightly-ai/lightly) library. This enables pretraining of visual feature extractors without labeled data before supervised fine-tuning.
 
-## To-Dos
-- [ ] Develop scripts more sophisticated/adaptable data splits.
+### Two-Phase Workflow
 
-## Contribution Guideline
-We are working on formulating rules but feel free to raise issues and PRs.
-
-## Citation
-
-Please cite the following work if you use our code: 
-
+**Phase 1: SSL Pretraining**
+```bash
+fedyolo-train-ssl
 ```
-@article{li2025ultraflwr,
-  title={UltraFlwr--An Efficient Federated Medical and Surgical Object Detection Framework},
-  author={Li, Yang and Kundu, Soumya Snigdha and Boels, Maxence and Mahmoodi, Toktam and Ourselin, Sebastien and Vercauteren, Tom and Dasgupta, Prokar and Shapey, Jonathan and Granados, Alejandro},
-  journal={arXiv preprint arXiv:2503.15161},
-  year={2025}
-}
+- Runs federated SSL pretraining on raw images (no labels needed)
+- Aggregates learned visual representations across clients
+- Saves SSL-pretrained backbone weights
+
+**Phase 2: Supervised Fine-Tuning**
+```bash
+fedyolo-train
 ```
+- Automatically loads SSL-pretrained weights
+- Trains task-specific heads with labeled data
+- Achieves better performance with less labeled data
+
+### SSL Methods Supported
+
+- **BYOL** (recommended for federated learning)
+- **SimCLR** (contrastive learning)
+- **MoCo** (momentum contrast)
+- **Barlow Twins**
+- **VICReg**
+
+### Key Features
+
+- Task-agnostic SSL: Works with detection, segmentation, pose estimation, classification
+- Heterogeneous SSL: Different SSL methods per client (experimental)
+- No data changes: Uses existing YOLO dataset structure
+
+For detailed SSL documentation, configuration options, and usage examples, see [docs/ssl.md](docs/ssl.md).
